@@ -4,35 +4,35 @@
   
     
       <url>
-            <loc>//localhost:1313/posts/first-post/</loc>
+            <loc>/posts/first-post/</loc>
             <lastmod>2025-01-24T02:00:00+02:00</lastmod>
           </url>
     
   
     
       <url>
-            <loc>//localhost:1313/</loc>
+            <loc>/</loc>
             <lastmod>2025-01-24T02:00:00+02:00</lastmod>
           </url>
     
   
     
       <url>
-            <loc>//localhost:1313/posts/</loc>
+            <loc>/posts/</loc>
             <lastmod>2025-01-24T02:00:00+02:00</lastmod>
           </url>
     
   
     
       <url>
-            <loc>//localhost:1313/about/</loc>
+            <loc>/about/</loc>
             <lastmod>2024-01-23T00:00:00+00:00</lastmod>
           </url>
     
   
     
       <url>
-            <loc>//localhost:1313/private/personal/hope/</loc>
+            <loc>/private/personal/hope/</loc>
           </url>
     
   
@@ -40,7 +40,7 @@
   
     
       <url>
-            <loc>//localhost:1313/private/</loc>
+            <loc>/private/</loc>
           </url>
     
   
