@@ -1,6 +1,6 @@
 ---
 title: "Getting Started with My Blog"
-date: 2024-12-16
+date: 2025-12-16
 draft: false
 description: "My first blog post about setting up this site and what's coming next"
 tags: ["intro", "personal"]
