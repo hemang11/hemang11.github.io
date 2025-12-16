@@ -1,6 +1,6 @@
 # -- Site Configuration --
 
-# baseURL = "https://hemang11.github.io/hemangshrimali.github.io/"
+# baseURL = "https://hemang11.github.io/"
 defaultContentLanguage = "en"
 
 enableRobotsTXT = true
