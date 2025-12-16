@@ -1,8 +1,10 @@
+---
 title: "Getting Started with My Blog"
 date: 2024-12-16
 draft: false
 description: "My first blog post about setting up this site and what's coming next"
 tags: ["intro", "personal"]
+----
 
 Welcome!
 This is my first post on my new blog. I'm excited to share my thoughts on distributed computing, finance, and psychology.
