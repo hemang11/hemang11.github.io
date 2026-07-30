@@ -1,0 +1,744 @@
+:root{
+  --bg: #F7F4EB;
+  --bg-grid: #E7E2D0;
+  --panel: #FFFDF7;
+  --ink: #14294A;
+  --ink-dim: #3F5A81;
+  --ink-faint: #8497B3;
+  --accent: #C2410C;
+  --accent-soft: #E9DAC9;
+  --hairline: #D8D0B8;
+  --box-dark: #14203A;
+}
+
+* { box-sizing: border-box; }
+
+:where(button.rail-bar, button.block, button.block-inner, button.nested,
+button.satellite, button.loop-node, button.chip) {
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  background: transparent;
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+button.block-inner {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* This is a reference doc, so its text has to be quotable. Browsers apply
+   user-select:none to buttons by default, which would make every card's
+   name, caption, and diagram label unselectable; and links are natively
+   draggable, so dragging a tab starts a link-drag instead of a selection. */
+button, a, .mini-box, .pattern-caption, .oneliner, .fo-note, .tag-mini {
+  -webkit-user-select: text;
+  user-select: text;
+}
+nav.tabs a, .satellite, .rail-bar {
+  -webkit-user-drag: none;
+}
+nav.tabs a { -webkit-user-select: text; user-select: text; }
+
+html {
+  height: 100%;
+}
+
+/* Flex and grid items default to min-width:auto, so they refuse to shrink
+   below their content's intrinsic width — that, not any single wide element,
+   is what pushed layout past the viewport on narrow screens. Every flex
+   container and item in this document is allowed to shrink instead. */
+.page, .frame-wrap, .frame-wrap iframe,
+nav.tabs, nav.tabs a,
+header, header h1, header .meta,
+.pattern-block, .pattern-label, .pattern-diagram, .pattern-caption,
+.detail, .detail-head, .detail-cols, .detail-cols > div,
+.diagram-row, .block, .block-inner, .nested,
+.loop-row, .loop-branch, .loop-node,
+.agent-compose, .agent-compose .piece, .agent-compose .result,
+.fanout, .fanout .fo-row, .fo-note,
+.pipeline-row, .critic-wrap, .critic-row, .critic-branches,
+.comms-wrap, .comms-row, .labeled-arrow,
+.ctxbar, .ctxbar > div,
+.mini-box, .tag-mini, .satellite, .rail-bar,
+.glossary-list, .glossary-list dd, .glossary-list dt,
+.chip-row, .chip, .panel-intro, .loopback {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Long unbroken strings (URLs, identifiers, schema names) must not be able
+   to set a floor on layout width. */
+.pattern-caption, .panel-intro, .oneliner, .fo-note, .mini-box,
+.glossary-list dd, .detail-cols li, .detail-head .where p, .loopback {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+body {
+  background-image:
+    linear-gradient(var(--bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 26px 26px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 20px 30px 26px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+header h1 {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.6rem, 3vw, 2.6rem);
+  text-transform: uppercase;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+header h1 span { color: var(--accent); }
+header .meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* ---- Tab nav (index.html shell) ---- */
+nav.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 16px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+nav.tabs a {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--panel);
+  color: var(--ink-dim);
+  border: 1.5px solid var(--ink);
+  padding: 8px 14px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+nav.tabs a.active {
+  background: var(--ink);
+  color: #F7F4EB;
+}
+nav.tabs a:hover:not(.active) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The shell (index.html) fills the viewport so the frame scrolls internally
+   on desktop; on narrow screens the frame keeps a usable guaranteed height
+   and the shell itself is allowed to scroll instead of clipping. */
+body.shell { height: 100vh; }
+
+.frame-wrap {
+  flex: 1 1 auto;
+  border: 2px solid var(--ink);
+  background: var(--panel);
+  min-height: 60vh;
+}
+.frame-wrap iframe {
+  width: 100%;
+  height: 100%;
+  /* height:100% only resolves against a parent with a *definite* height.
+     Where the parent has just a min-height (see the narrow-screen rule
+     below), a percentage height is indefinite and the iframe falls back to
+     its 150px intrinsic default. This floor keeps it usable either way. */
+  min-height: 60vh;
+  border: none;
+  display: block;
+}
+
+.page { display: flex; flex-direction: column; gap: 14px; flex: 1; width: 100%; }
+
+/* Gives each chapter a real h1/h2 outline for screen readers and document
+   navigation without visually duplicating the card titles. A heading cannot
+   live inside a <button>, so these sit just before each card. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.panel-intro {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.92rem;
+  color: var(--ink-dim);
+  max-width: 900px;
+  line-height: 1.5;
+}
+
+/* ---- Rail bars ---- */
+.rail-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 7px 14px;
+  cursor: pointer;
+  border: 1px dashed var(--ink-faint);
+  background: var(--accent-soft);
+  opacity: 0.85;
+}
+.rail-bar:hover, .rail-bar.active { opacity: 1; border-style: solid; }
+.rail-bar .line { flex: 1; border-top: 1px dashed var(--ink-faint); }
+
+.diagram-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex-wrap: nowrap;
+}
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  flex-shrink: 0;
+  color: var(--ink-faint);
+  font-size: 1.5rem;
+}
+
+.block {
+  flex: 1 1 0;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  padding: 16px 18px;
+  cursor: pointer;
+  min-width: 0;
+  transition: box-shadow .15s ease, border-color .15s ease;
+  position: relative;
+}
+.block:hover { box-shadow: 0 0 0 2px var(--accent-soft); }
+.block.active { box-shadow: 0 0 0 3px var(--accent); border-color: var(--accent); }
+.block:has(> .block-inner) { cursor: default; }
+.block-inner:hover { box-shadow: 0 0 0 2px var(--accent-soft); }
+.block-inner.active { box-shadow: 0 0 0 3px var(--accent); }
+.block-inner.active .tag { background: var(--accent); }
+
+.block .tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  color: #fff;
+  background: var(--ink);
+  padding: 2px 8px;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+.block.active .tag { background: var(--accent); }
+.block .name {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 700;
+  font-size: 1.55rem;
+  text-transform: uppercase;
+  line-height: 1.05;
+}
+.block .oneliner {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  margin-top: 6px;
+  line-height: 1.35;
+}
+.block .hop {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--accent);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--hairline);
+  line-height: 1.3;
+}
+
+.nested {
+  margin-top: 10px;
+  background: var(--box-dark);
+  color: #F2EFE4;
+  padding: 9px 11px;
+  cursor: pointer;
+  border: 1px solid var(--accent);
+}
+.nested .name { font-size: 1rem; color: #fff; }
+.nested .oneliner { color: #C7B7A6; }
+.nested:hover { box-shadow: 0 0 0 2px var(--accent-soft); }
+.nested.active { box-shadow: 0 0 0 3px var(--accent); }
+
+.satellite-row {
+  display: flex;
+  justify-content: flex-start;
+  padding-left: calc(25% + 32px);
+}
+.satellite {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+  border: 1px dashed var(--ink-faint);
+  background: var(--panel);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.satellite:hover, .satellite.active { border-style: solid; color: var(--accent); border-color: var(--accent); }
+.satellite::before { content: "\21B3 "; }
+
+/* ---- Detail panel (shared pattern) ---- */
+.detail {
+  border-top: 2px solid var(--ink);
+  padding-top: 14px;
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+.detail-head { flex: 0 0 260px; }
+.detail-head .tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  color: #fff;
+  background: var(--accent);
+  padding: 2px 8px;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+.detail-head .name {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 800;
+  font-size: 2rem;
+  text-transform: uppercase;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+.detail-head .where b {
+  display: block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.detail-head .where p {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--ink-dim);
+  margin: 0;
+  line-height: 1.45;
+}
+.detail-cols {
+  flex: 1 1 420px;
+  min-width: 0;
+  display: grid;
+  /* auto-fit so a card with a Source column lays out as three, and narrow
+     viewports collapse to one, without a hardcoded column count */
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 26px;
+}
+.detail-cols h4 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 10px;
+}
+.detail-cols ul { margin: 0; padding: 0; list-style: none; }
+.detail-cols li {
+  font-size: 1rem;
+  line-height: 1.45;
+  padding-left: 16px;
+  position: relative;
+  margin-bottom: 8px;
+}
+.detail-cols .responsibility li::before { content: "\00b7"; position: absolute; left: 0; color: var(--ink-faint); font-size: 1.2rem; }
+.detail-cols .achieves li::before { content: "\2192"; position: absolute; left: 0; color: var(--accent); }
+.detail-cols .source li::before { content: "\00a7"; position: absolute; left: 0; color: var(--ink-faint); }
+.detail-cols .source li {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--ink-dim);
+  overflow-wrap: break-word;
+}
+.detail-cols .source a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.detail-cols .source a:hover { text-decoration-thickness: 2px; }
+.detail-cols .source a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- Loop nodes ---- */
+.loop-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.loop-node {
+  flex: 1 1 0;
+  min-width: 150px;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  padding: 16px 16px;
+  cursor: pointer;
+  text-align: center;
+  transition: box-shadow .15s ease;
+}
+.loop-node.model { background: var(--box-dark); color: #F2EFE4; border-color: var(--accent); }
+.loop-node.model .name { color: #fff; }
+.loop-node .tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.loop-node.model .tag { color: #E8935F; }
+.loop-node .name {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 700;
+  font-size: 1.3rem;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+.loop-node:hover { box-shadow: 0 0 0 2px var(--accent-soft); }
+.loop-node.active { box-shadow: 0 0 0 3px var(--accent); }
+
+.loop-branch {
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+  margin-top: -4px;
+}
+.loop-branch .loop-node { flex: 1 1 0; }
+
+.loopback {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+  text-align: center;
+  border: 1px dashed var(--ink-faint);
+  padding: 8px;
+  background: var(--accent-soft);
+}
+.loopback b { color: var(--accent); }
+
+/* ---- Composition rows ---- */
+.agent-compose {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.agent-compose .piece {
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  padding: 14px 18px;
+  text-align: center;
+  flex: 1 1 0;
+  min-width: 130px;
+}
+.agent-compose .piece .name {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 700;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+}
+.agent-compose .plus {
+  font-size: 1.6rem;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+}
+.agent-compose .equals {
+  font-size: 1.6rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.agent-compose .result {
+  background: var(--box-dark);
+  color: #fff;
+  border: 2px solid var(--accent);
+  padding: 14px 22px;
+  text-align: center;
+  flex: 1 1 0;
+  min-width: 160px;
+}
+.agent-compose .result .name { font-family: 'Big Shoulders Display', sans-serif; font-weight: 800; font-size: 1.4rem; text-transform: uppercase; }
+
+/* ---- Pattern block (the general-purpose card used everywhere) ---- */
+/* Cards are <article>, not <button> — wrapping a whole diagram in a button
+   gave it an accessible name thousands of characters long. The short
+   .disclose button inside carries the interaction instead. */
+.pattern-block {
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  flex-wrap: wrap;
+  transition: box-shadow .15s ease;
+}
+.pattern-block:has(.disclose:hover) { box-shadow: 0 0 0 2px var(--accent-soft); }
+.pattern-block.static:hover { box-shadow: none; }
+.pattern-label { flex: 0 0 220px; }
+
+.disclose {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid var(--ink-faint);
+  padding: 4px 10px;
+  margin-top: 10px;
+  cursor: pointer;
+  display: inline-block;
+  transition: border-color .15s ease, color .15s ease;
+}
+.disclose:hover { border-color: var(--accent); color: var(--accent); }
+.disclose::after { content: " \25BE"; }
+.disclose[aria-expanded="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.disclose[aria-expanded="true"]::after { content: " \25B4"; }
+.pattern-label .tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: #fff;
+  background: var(--ink);
+  padding: 2px 8px;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+.pattern-block.active .pattern-label .tag { background: var(--accent); }
+.pattern-block.active { box-shadow: 0 0 0 3px var(--accent); border-color: var(--accent); }
+/* .name is now an <h2> (a real heading, so each chapter has an outline).
+   Reset the UA heading margins so the visual layout is unchanged. */
+.pattern-label .name {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 700;
+  font-size: 1.4rem;
+  text-transform: uppercase;
+  line-height: 1.05;
+  margin: 0;
+}
+.pattern-diagram { flex: 1 1 320px; }
+.pattern-caption {
+  flex: 1 1 100%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.88rem;
+  color: var(--ink-dim);
+  line-height: 1.5;
+  border-top: 1px dashed var(--hairline);
+  padding-top: 12px;
+}
+.pattern-caption b { color: var(--accent); }
+
+.mini-box {
+  background: #FFFFFF;
+  border: 1.5px solid var(--ink);
+  padding: 8px 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  text-align: center;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.mini-box.dark { background: var(--box-dark); color: #F2EFE4; border-color: var(--accent); }
+.mini-box small { display: block; font-size: 0.68rem; color: var(--ink-faint); font-weight: 400; white-space: normal; }
+.mini-box.dark small { color: #C7B7A6; }
+
+.fanout { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.fanout .fo-note { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--ink-faint); text-align: center; }
+.fanout .fo-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+.pipeline-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pipeline-row .arrow { width: 20px; font-size: 1.1rem; }
+
+.critic-wrap { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.critic-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.critic-row .arrow { width: 20px; font-size: 1.1rem; }
+.critic-branches { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.critic-branches .tag-mini {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  border: 1px dashed var(--ink-faint);
+}
+.critic-branches .reject { color: var(--accent); border-color: var(--accent); }
+.critic-branches .approve { color: #2F6F4E; border-color: #2F6F4E; }
+
+/* ---- Context bar ---- */
+.ctxbar { display: flex; border: 2px solid var(--ink); }
+.ctxbar > div {
+  padding: 10px 10px;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  border-right: 1px dashed var(--hairline);
+  color: var(--ink-dim);
+}
+.ctxbar > div:last-child { border-right: none; background: var(--box-dark); color: #F2EFE4; border-left: 2px solid var(--accent); }
+.ctxbar .sys { flex: 1.1; }
+.ctxbar .tool { flex: 1; }
+.ctxbar .mem { flex: 1; }
+.ctxbar .hist { flex: 1.3; }
+.ctxbar .delta { flex: 0.9; }
+
+/* ---- Labeled arrow (comms diagrams) ---- */
+.comms-wrap { display: flex; flex-direction: column; gap: 16px; }
+.comms-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.labeled-arrow { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.labeled-arrow .arrow-glyph { font-size: 1.3rem; color: var(--ink-faint); }
+.labeled-arrow small { font-family: 'IBM Plex Mono', monospace; font-size: 0.66rem; color: var(--ink-dim); text-align: center; overflow-wrap: break-word; }
+
+/* ---- Vocabulary chips (glossary) ---- */
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  padding: 6px 12px;
+  border: 1.5px solid var(--ink);
+  background: var(--panel);
+  cursor: pointer;
+  transition: box-shadow .15s ease;
+}
+.chip:hover { box-shadow: 0 0 0 2px var(--accent-soft); }
+.chip.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+.glossary-list { display: flex; flex-direction: column; gap: 0; border-top: 2px solid var(--ink); }
+.glossary-list dt {
+  font-family: 'Big Shoulders Display', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  color: var(--ink);
+  padding: 12px 0 2px;
+  border-bottom: 1px dashed var(--hairline);
+}
+.glossary-list dd {
+  margin: 0 0 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.88rem;
+  color: var(--ink-dim);
+  line-height: 1.5;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--hairline);
+}
+.glossary-list dd b { color: var(--accent); }
+
+@media (max-width: 900px) {
+  .diagram-row, .loop-row, .agent-compose { flex-wrap: wrap; }
+  .arrow { display: none; }
+  .satellite-row { padding-left: 0; }
+  .detail { flex-direction: column; }
+  .detail-cols { grid-template-columns: 1fr; }
+  /* These carry fixed flex-basis values (220px / 260px / 320px / 420px) that
+     are wider than the available line here — drop them all to full width. */
+  .pattern-label, .pattern-diagram, .detail-head, .detail-cols {
+    flex-basis: 100%;
+  }
+  .pattern-block { gap: 16px; }
+  body { padding: 18px 20px 22px; }
+}
+
+@media (max-width: 560px) {
+  body { padding: 14px 14px 20px; }
+
+  /* The shell must be allowed to grow and scroll here — a hard 100vh with a
+     wrapped nav is what clipped content on small screens. */
+  body.shell { height: auto; min-height: 100vh; }
+  /* A definite height, not just a min-height — otherwise the iframe's
+     height:100% has nothing to resolve against and collapses to 150px. */
+  .frame-wrap { height: 75vh; min-height: 75vh; }
+  .frame-wrap iframe { height: 100%; min-height: 75vh; }
+
+  header { padding-bottom: 8px; }
+  header h1 { font-size: 1.5rem; }
+  header .meta { font-size: 0.68rem; }
+
+  /* Every horizontal diagram row stacks. */
+  .diagram-row, .loop-row, .loop-branch, .agent-compose,
+  .fo-row, .critic-row, .critic-branches, .pipeline-row,
+  .comms-row, .ctxbar, .chip-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Anything that was a fixed-basis flex child becomes full width. */
+  .block, .loop-node, .piece, .result, .mini-box,
+  .pattern-label, .pattern-diagram, .detail-head, .detail-cols,
+  .critic-branches .tag-mini, .satellite, .rail-bar, .chip {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .pattern-block { padding: 14px 14px; gap: 12px; }
+  .pattern-caption { font-size: 0.82rem; }
+  .fanout, .critic-wrap, .comms-wrap { width: 100%; }
+  .fanout .fo-row { width: 100%; }
+  .critic-branches .tag-mini { text-align: center; }
+
+  .labeled-arrow { width: 100%; }
+  .labeled-arrow small { white-space: normal; }
+
+  .ctxbar > div { border-right: none; border-bottom: 1px dashed var(--hairline); }
+  .ctxbar > div:last-child { border-bottom: none; border-left: none; border-top: 2px solid var(--accent); }
+
+  .agent-compose .plus, .agent-compose .equals { text-align: center; width: 100%; }
+
+  nav.tabs { gap: 6px; margin: 10px 0 12px; }
+  nav.tabs a { flex: 1 1 auto; font-size: 0.7rem; padding: 7px 8px; text-align: center; }
+
+  .glossary-list dt { font-size: 1rem; }
+  .glossary-list dd { font-size: 0.82rem; }
+}

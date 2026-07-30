@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt, Context &amp; Knowledge — Around the Black Box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="page">
+    <h1 style="font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:2rem; text-transform:uppercase; margin:0;">Prompt, Context &amp; Knowledge</h1>
+    <div class="panel-intro">What actually goes into the model's context this call and how it is selected and budgeted; how that context is kept clean as a run grows long; how a prompt's instructions are structured and ranked — and which content carries no authority at all; how a separate retrieval pipeline feeds grounded knowledge into that context without replacing it; and what that pipeline needs on either side of retrieval — getting usable text out of the source documents in the first place, turning a user's words into a searchable query, and holding a labeled test set that makes “retrieval quality” a number rather than an opinion.</div>
+
+    <article class="pattern-block" aria-labelledby="h-ctx-window">
+      <div class="pattern-label"><span class="tag">SHAPING</span><h2 class="name" id="h-ctx-window">Context Window</h2><button type="button" class="disclose" data-group="promptctx" data-id="ctx-window" aria-controls="detail-promptctx" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Context Window</span></button></div>
+      <div class="pattern-diagram">
+        <div class="comms-wrap">
+          <div class="pipeline-row">
+            <div class="mini-box">Candidate Items<br><small>memories · chunks · prior turns · tool results</small></div>
+            <div class="arrow">→</div>
+            <div class="mini-box">Select &amp; Rank<br><small>score, then admit in priority order</small></div>
+            <div class="arrow">→</div>
+            <div class="mini-box">Budget &amp; Place<br><small>per-component cap · position chosen</small></div>
+          </div>
+          <div class="ctxbar">
+            <div class="sys">System<br>Prompt</div>
+            <div class="tool">Tool<br>Schemas</div>
+            <div class="mem">Memory</div>
+            <div class="hist">History</div>
+            <div class="delta">This<br>Turn</div>
+          </div>
+          <div class="fanout">
+            <div class="fo-note">each slot gets its own token budget — and headroom is <b>reserved for the output</b> before any of them are filled</div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">Anthropic defines context as “the set of tokens included when sampling from a large language model (LLM)” — system instructions, tools, external data, message history, and examples, assembled by the Harness fresh each call. Their core principle: “find the smallest set of high-signal tokens that maximize the likelihood of some desired outcome.” This is <b>not</b> the same as state or memory — everything the application stores across turns and sessions (see State &amp; Runtime) — context is only the slice of that store actually sent to the model this call. Because more is almost always available than fits, assembly is an explicit <b>selection and ranking</b> step: score the candidate items — memories, retrieved chunks, prior turns, tool results — and admit them in priority order until the budget runs out, rather than attaching whatever looks relevant and hoping it fits. <b>Ordering is part of the design, not an accident of append order</b>: where material sits in the window affects how strongly it influences the output, which is a general and well-observed effect, so placement is chosen deliberately. And give each component its own <b>token budget</b> — system, tools, memory, retrieved, history — with <b>headroom reserved for the response itself</b>, so a maximal input can never leave the model with no room to answer.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-ctx-hygiene">
+      <div class="pattern-label"><span class="tag">HYGIENE</span><h2 class="name" id="h-ctx-hygiene">Context Hygiene</h2><button type="button" class="disclose" data-group="promptctx" data-id="ctx-hygiene" aria-controls="detail-promptctx" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Context Hygiene</span></button></div>
+      <div class="pattern-diagram">
+        <div class="critic-wrap">
+          <div class="critic-row">
+            <div class="mini-box">Threshold Reached<br><small>defined share of the window, e.g. 80%</small></div>
+            <div class="arrow">→</div>
+            <div class="mini-box">Prune, then Summarize<br><small>lossy by definition</small></div>
+            <div class="arrow">→</div>
+            <div class="mini-box">Loss Check<br><small>did load-bearing facts survive?</small></div>
+          </div>
+          <div class="critic-branches">
+            <span class="tag-mini approve">facts + identifiers survived → continue</span>
+            <span class="tag-mini reject">something load-bearing dropped → re-fetch by identifier</span>
+          </div>
+        </div>
+        <div class="fanout">
+          <div class="fo-note" style="border-top:2px solid var(--ink); width:100%; margin-top:14px; padding-top:10px;">↓ and every span carries a label, because after assembly it is all one flat token stream ↓</div>
+          <div class="fo-row">
+            <div class="mini-box dark">Authored<br><small>system · developer · user — trusted</small></div>
+            <div class="mini-box">Retrieved<br><small>source + fetch time — untrusted</small></div>
+            <div class="mini-box">Tool output<br><small>which tool, which call — untrusted</small></div>
+          </div>
+          <div class="critic-branches">
+            <span class="tag-mini reject">keep untrusted spans delimited · droppable · quarantinable</span>
+            <span class="tag-mini approve">never promote them into durable memory unreviewed</span>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">Context is not assembled once and left alone — it is maintained across a whole run, and both halves of that maintenance can fail quietly. <b>Compaction should fire at a defined threshold</b> — a set share of the usable window — so it is a predictable, testable event rather than an ad-hoc reaction to something feeling too long. Anthropic's guide describes pruning raw tool results deep in history as “one of the safest compaction techniques,” with summarizing-and-reinitiating for the rest. But <b>compaction is lossy by definition</b>, so you need a way to notice when something load-bearing was dropped: verify that the facts the run actually depends on survived the summary, and keep identifiers and links in the summary so any dropped detail can be re-fetched rather than guessed at. The other half is trust. Once assembled, an authored instruction and a scraped web page look like the same flat token stream, so <b>label each span with its provenance and how far it is trusted</b> — authored instruction, retrieved document, tool output, user paste. That labeling is what keeps the instruction hierarchy on this page workable in practice: tool output and retrieved content carry <b>no instruction authority</b> (see the Prompt Engineering card), and after everything lands in one window a provenance label is the only thing still saying so. Finally, <b>bad content in context influences every later turn of the run</b>, not just the turn it arrived in — so keep untrusted content clearly delimited, never let it slide into durable memory unreviewed, and keep the ability to drop or quarantine a poisoned span instead of carrying it forward for the rest of the session.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-prompt-eng">
+      <div class="pattern-label"><span class="tag">HIERARCHY</span><h2 class="name" id="h-prompt-eng">Prompt Engineering</h2><button type="button" class="disclose" data-group="promptctx" data-id="prompt-eng" aria-controls="detail-promptctx" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Prompt Engineering</span></button></div>
+      <div class="pattern-diagram">
+        <div class="fanout">
+          <div class="fo-note"><b>CAN CARRY INSTRUCTIONS</b> — authority levels, higher overrides lower</div>
+          <div class="fo-note">above: <b>Root</b> — the Model Spec itself, not overridable</div>
+          <div class="fo-row">
+            <div class="mini-box dark">System<br><small>platform · overrides dev + user</small></div>
+            <div class="mini-box">Developer<br><small>API instructions · overrides user</small></div>
+            <div class="mini-box">User<br><small>end user · overrides guidelines</small></div>
+          </div>
+          <div class="fo-note">below: <b>Guideline</b> — default behavior, implicitly overridable</div>
+          <div class="fo-note">only <i>unquoted plain text</i> in these message types carries authority</div>
+        </div>
+        <div class="fanout">
+          <div class="fo-note" style="border-top:2px solid var(--ink); width:100%; margin-top:14px; padding-top:10px;">↓ a different <i>kind</i> of thing — not a lower rung of the ladder above ↓</div>
+          <div class="fo-note"><b>NO AUTHORITY</b> — untrusted data, never instructions</div>
+          <div class="fo-row">
+            <div class="mini-box">Tool outputs</div>
+            <div class="mini-box">Retrieved / web content</div>
+            <div class="mini-box">Quoted text</div>
+            <div class="mini-box">Images</div>
+          </div>
+          <div class="critic-branches">
+            <span class="tag-mini reject">ignore instructions found inside</span>
+            <span class="tag-mini approve">use as information to reason over</span>
+          </div>
+          <div class="fo-note">exception: a higher-level instruction may <i>explicitly delegate</i> authority to a source</div>
+        </div>
+      </div>
+      <div class="pattern-caption">The OpenAI Model Spec (2025-09-12) ranks instruction authority in five levels: <b>Root</b> (the Spec itself, which cannot be overridden), then <b>System</b> (platform messages), <b>Developer</b> (API instructions), <b>User</b> (end-user instructions), and <b>Guideline</b> (default behaviors, implicitly overridable) — each level overrides the ones below it. <b>Tool messages are not a rung on that ladder at all.</b> The Spec lists them under “No Authority,” together with assistant messages, quoted/untrusted text, and multimodal data: “all other content (e.g., untrusted_text, quoted text, images, or tool outputs) should be ignored unless an applicable higher-level instruction explicitly delegates authority to it.” So only unquoted plain text in system, developer, and user messages can carry instruction authority; a tool result, a fetched web page, or a quoted passage is <b>information, not a command</b> — unless a higher-authority message explicitly delegates authority to that source. MCP's tools specification (revision 2026-07-28) reinforces the same point about a tool's own metadata: “clients MUST consider tool annotations to be untrusted unless they come from trusted servers.” And this hierarchy is <b>not a prompt-injection security boundary</b> — it is a provider-specific model-behavior convention implemented by training, not an enforced boundary. It contributes defense-in-depth, but it cannot substitute for real controls: authorization, isolation/sandboxing, input and output validation, and egress restrictions. Ranking your messages does <b>not</b> mean injection is handled. Within any single instruction, templates, delimiters, and a small set of diverse, canonical examples give the model structure it can parse reliably rather than an exhaustive list of edge cases — “examples are the ‘pictures’ worth a thousand words” for an LLM. Ask for structured output and validate it against a schema instead of parsing prose, and treat the prompt itself as versioned, tested code, not something edited freely in production.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-rag">
+      <div class="pattern-label"><span class="tag">RETRIEVAL</span><h2 class="name" id="h-rag">RAG &amp; Knowledge</h2><button type="button" class="disclose" data-group="promptctx" data-id="rag" aria-controls="detail-promptctx" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for RAG &amp; Knowledge</span></button></div>
+      <div class="pattern-diagram">
+        <div class="pipeline-row">
+          <div class="mini-box">Indexed Corpus<br><small>offline: parsed, chunked, embedded + indexed, ACL metadata on every chunk — see Retrieval Pipeline</small></div>
+        </div>
+        <div class="fanout">
+          <div class="fo-note" style="border-top:2px solid var(--ink); width:100%; margin-top:14px; padding-top:10px;">↓ <b>TWO PATHS IN</b> — the difference is who writes the query ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">1 · App-Controlled Preprocessing<br><small>app retrieves <i>before</i> inference · app authors the query and the authz check · retrieve-then-read</small></div>
+            <div class="mini-box">2 · Model-Selected Tool Call<br><small>model decides mid-loop whether and what to retrieve · <i>query is model-generated</i></small></div>
+          </div>
+          <div class="critic-branches">
+            <span class="tag-mini approve">path 1: narrower injection surface · predictable latency · easy to observe</span>
+            <span class="tag-mini reject">path 2: wider injection + authz surface · retrieval count not known up front</span>
+          </div>
+          <div class="fo-note">↓ both converge on the same pipeline — and the same two enforcement points ↓</div>
+        </div>
+        <div class="pipeline-row">
+          <div class="mini-box">ACL-Constrained Retrieval<br><small>pre-filter the candidate set, then hybrid search</small></div>
+          <div class="arrow">→</div>
+          <div class="mini-box">Rerank<br><small>relevance, over permitted docs only</small></div>
+          <div class="arrow">→</div>
+          <div class="mini-box">Re-check Before Assembly<br><small>enforce ACLs again — matters <i>more</i> on path 2</small></div>
+          <div class="arrow">→</div>
+          <div class="mini-box dark">Cited Answer<br><small>traced to source</small></div>
+        </div>
+      </div>
+      <div class="pattern-caption">RAG is a separate retrieval pipeline that feeds context — it doesn't replace it (see Data &amp; Knowledge on the Foundations page for where it sits in the overall architecture). Source documents are parsed and chunked, embedded for semantic search and indexed for keyword/hybrid search, with the metadata and access controls (ACLs) of the original data carried onto every chunk — that offline build, the query preparation that precedes a search, and the labeled test set the metrics below are computed against are the subject of the <b>Retrieval Pipeline</b> card that follows. Retrieval then reaches the model by <b>one of two distinct paths</b>, and which one you pick is an architectural decision, not a detail. In <b>application-controlled preprocessing</b>, the application retrieves before inference and places the results into context deterministically: the model never chooses whether or what to retrieve, so the app owns both the query and the authorization check — the injection surface is narrower, latency is predictable, and the call is easy to observe. That is the classic retrieve-then-read shape. In <b>model-selected retrieval via a tool call</b>, the model decides mid-loop whether to retrieve and what to search for; this is more flexible and often better for open-ended work, but the <b>query itself is model-generated</b>, which widens the injection and authorization surface — a poisoned earlier turn can influence what gets searched for — and makes latency and observability harder to predict, because the number of retrievals isn't known up front. Either path, <b>authorization must constrain the candidate set before or during retrieval, not after it.</b> Filtering only at the end still lets the search rank over documents the user can't see, which leaks through result counts, ranking signals, and reranker behavior even when the forbidden documents themselves are dropped. So pre-filter the search to what the caller may see, then <b>re-check permissions again before context assembly</b> as defense-in-depth — and note that re-check matters <b>more</b> in the model-selected path, not less, precisely because the query was not app-authored. Attach citations either way, so every claim traces back to a source the user is allowed to read. Measure retrieval, don't assume it: <b>recall@k</b> (did the right chunk make the candidate set), <b>MRR / nDCG</b> (is it ranked near the top), <b>citation precision</b> (do the cited sources actually support the claim), <b>groundedness</b> (is the answer contained in retrieved context rather than invented), and <b>freshness</b> (how stale is the index). Those evals catch silent staleness or bad chunking before users do — but note that every one of them except freshness is computed <b>against a labeled test set</b> of queries paired with known-relevant documents, so building and maintaining that set is part of the work rather than a detail of it (see Retrieval Pipeline).</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-rag-pipeline">
+      <div class="pattern-label"><span class="tag">PIPELINE</span><h2 class="name" id="h-rag-pipeline">Retrieval Pipeline</h2><button type="button" class="disclose" data-group="promptctx" data-id="rag-pipeline" aria-controls="detail-promptctx" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Retrieval Pipeline</span></button></div>
+      <div class="pattern-diagram">
+        <div class="fanout">
+          <div class="fo-note"><b>OFFLINE BUILD</b> — before anything can be retrieved, text has to come out of the source</div>
+        </div>
+        <div class="pipeline-row">
+          <div class="mini-box">Source Files<br><small>PDF · scan · image · slide deck · spreadsheet · HTML</small></div>
+          <div class="arrow">→</div>
+          <div class="mini-box">Parse · OCR · Layout<br><small>get the text out · reading order · columns · tables · headers/footers stripped</small></div>
+          <div class="arrow">→</div>
+          <div class="mini-box">Chunk<br><small>split on real structure, carry ACL + metadata</small></div>
+          <div class="arrow">→</div>
+          <div class="mini-box">Embed &amp; Index<br><small>vectors for semantic, terms for keyword/hybrid</small></div>
+        </div>
+        <div class="critic-branches">
+          <span class="tag-mini reject">extraction failures are silent — a flattened table still retrieves, it just means nothing</span>
+          <span class="tag-mini approve">validate this stage on its own, before its output ever reaches the index</span>
+        </div>
+        <div class="fanout">
+          <div class="fo-note" style="border-top:2px solid var(--ink); width:100%; margin-top:14px; padding-top:10px;">↓ <b>AT QUERY TIME</b> — the user's literal words are often the wrong search query ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">Rewrite<br><small>resolve pronouns + earlier turns into a standalone query · normalise or expand terminology · emit variants</small></div>
+            <div class="mini-box">Decompose<br><small>“how do X and Y differ” → two retrievals, results combined — not one query</small></div>
+          </div>
+          <div class="critic-branches">
+            <span class="tag-mini reject">a rewritten query or sub-query is still model-generated — still untrusted input</span>
+            <span class="tag-mini approve">the authorization pre-filter applies to every sub-query, separately</span>
+          </div>
+        </div>
+        <div class="fanout">
+          <div class="fo-note" style="border-top:2px solid var(--ink); width:100%; margin-top:14px; padding-top:10px;">↓ and none of the retrieval metrics can be computed without this ↓</div>
+          <div class="fo-row">
+            <div class="mini-box dark">Labeled Test Set<br><small>representative queries × judged-relevant documents · maintained as the corpus changes</small></div>
+            <div class="mini-box">recall@k · MRR / nDCG · citation precision<br><small>each one presupposes a gold set to score against</small></div>
+          </div>
+          <div class="critic-branches">
+            <span class="tag-mini reject">no labeled set → “retrieval quality” is an opinion</span>
+            <span class="tag-mini approve">a fixed set tells a parsing/chunking regression apart from a model regression</span>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">The RAG card describes the retrieval path; this is the machinery on either side of it, and it is where most retrieval quality is actually won or lost. <b>Start with extraction, because you cannot chunk text you haven't got.</b> PDFs, scans, and images need OCR; multi-column pages, tables, headers and footers, and reading order need layout extraction; slides and spreadsheets carry structure that naive text extraction destroys. This stage is the most failure-prone in the pipeline and it fails <b>silently</b> — a table flattened into a wall of numbers, or a two-column page interleaved line by line, produces chunks that embed cleanly, retrieve confidently, and mean nothing. <b>Retrieval quality is capped by extraction quality</b>, so parsing deserves its own validation — sample the extracted text, diff it against the source, check that tables and reading order survived — rather than being judged only by whether the final answer looked plausible. Chunking then splits on real structure (sections, rows, slides) rather than a fixed character count wherever it lands, and ACLs and metadata ride along onto every chunk. Next, at query time: <b>the user's literal words are often the wrong search query.</b> <b>Rewriting</b> turns a context-dependent utterance into a standalone one — resolving pronouns and references to earlier turns, normalising or expanding terminology, and optionally emitting several query variants to search in parallel. <b>Decomposition</b> splits a multi-part question into separate retrievals whose results are combined afterwards; a question like “how do X and Y differ” usually needs two retrievals, not one, because no single chunk covers both halves. Both tie straight back to the security point on this page: a rewritten or decomposed query is <b>model-generated, so it remains untrusted input</b>, and the authorization pre-filter has to apply to every sub-query independently — decomposition multiplies the queries, it does not dilute the check. Finally, the measurement itself: recall@k, MRR / nDCG, and citation precision are not free-standing numbers. <b>They presuppose a labeled set of queries paired with known-relevant documents</b>, and building one is real work — assembling queries that represent what users actually ask, judging which documents genuinely answer them, and keeping those judgements current as the corpus changes. Without that gold set, “retrieval quality” is an opinion rather than a measurement. It also buys you attribution: because the queries and expected documents are fixed, a drop after a parser or chunking change is visibly a <b>pipeline</b> regression, not a model one — which is otherwise very hard to tell apart.</div>
+    </article>
+
+    <div class="detail" id="detail-promptctx"></div>
+  </div>
+
+<script src="shared.js"></script>
+<script>
+const PROMPTCTX = {
+  "ctx-window": { tag:"Shaping", name:"Context Window",
+    where:"Assembled inside the Harness (L2), every single turn, before the model is ever called.",
+    resp:["Select and rank explicitly: score the candidate items — memories, retrieved chunks, prior turns, tool results — and admit them in priority order until the budget is spent, instead of attaching everything that looks relevant","Allocate a token budget per component — system, tools, memory, retrieved, history — so no single part can silently consume the window","Reserve headroom for the model's own output before filling any component, so a maximal input still leaves room to answer","Choose where admitted material sits: position within the window affects how strongly it influences the output, so ordering is a deliberate decision rather than whatever order things were appended in","Prune raw tool results once they've served their purpose deep in message history — “one of the safest compaction techniques”","Retrieve just-in-time via lightweight identifiers (file paths, queries, links) instead of pre-loading everything — progressive disclosure","Compact by summarizing and reinitiating with compressed context when the window is under pressure","Maintain external, structured notes (e.g. a NOTES.md-style file) so critical context survives a reset"],
+    ach:["Keeps the assembled context to the smallest set of high-signal tokens, not the largest set of available ones","Makes “what got in, and why it ranked above the thing that didn't” an explicit, reviewable decision","Per-component budgets make growth attributable — you can see which part of the window expanded, instead of only that the total did","An output reserve prevents the failure where a long input leaves the model no room to respond","Distinguishes this call's actual tokens from the durable state and memory the application stores (see State &amp; Runtime)","Lets an agent survive a context reset without losing what it had already learned"],
+    source:['<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic — Effective context engineering for AI agents</a>: context defined as the token set included at inference; guiding principle is the smallest set of high-signal tokens that maximize the likelihood of the desired outcome','<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Same guide</a>: tool-result pruning described as one of the safest compaction techniques','<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Same guide</a>: progressive disclosure — retrieve via lightweight identifiers, just-in-time','Stated as general practice rather than a quote from any source above: explicit selection/ranking, per-component token budgets, an output reserve, and deliberate ordering — position in the window is a widely observed influence on how strongly material is used, and no specific figure is claimed here. Related background: <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic — Effective context engineering for AI agents</a>'] },
+  "ctx-hygiene": { tag:"Hygiene", name:"Context Hygiene",
+    where:"The maintenance side of the same assembly step in the Harness (L2) — what gets compacted, what gets labeled, and what gets thrown out, tracked across a whole run rather than one call.",
+    resp:["Trigger compaction at a defined threshold — a set percentage of the usable window — not ad hoc when something feels too long","Compact in the order that loses least: prune raw tool results that have already served their purpose first — “one of the safest compaction techniques” — then summarize and reinitiate for the rest","Detect summarization loss: verify that the specific facts the run depends on survived the summary, and treat a missing one as a failure rather than a style difference","Keep identifiers and links inside every summary, so detail that was compacted away can be re-fetched instead of guessed at","Label each span with its provenance — authored instruction, retrieved document, tool output, user paste — and how far that source is trusted","Keep untrusted spans clearly delimited from authored instructions, since after assembly they are all just tokens in one window","Never promote untrusted content into durable memory without review — that is how one bad page persists into every later session","Keep the ability to drop or quarantine a span, so a poisoned turn can be excised instead of carried forward"],
+    ach:["Compaction becomes a predictable event with a known trigger point, which makes it testable","Surfaces the lossiness of summarization: you find out a load-bearing detail was dropped, rather than watching the model confidently invent a replacement for it","Re-fetchable identifiers let a summary be thin without being final","Provenance labels keep the instruction hierarchy workable after assembly — tool output and retrieved content carry no instruction authority (see the Prompt Engineering card on this page), and a label is what still says so once everything sits in the same window","Distinguishes “the model was told this by us” from “the model read this somewhere” at the point where it matters — while reasoning over both","Contains poisoning: content that is delimited, labeled, and droppable affects one span instead of every remaining turn of the run"],
+    source:['<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic — Effective context engineering for AI agents</a>: tool-result pruning as one of the safest compaction techniques; compaction by summarizing and reinitiating; structured note-taking outside the window','<a href="https://model-spec.openai.com/2025-09-12.html" target="_blank" rel="noopener">OpenAI Model Spec (2025-09-12)</a> — tool outputs, retrieved/quoted text, and images sit under “No Authority,” which is what provenance labels have to preserve once everything is assembled into one window','<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools" target="_blank" rel="noopener">MCP tools specification (revision 2026-07-28)</a> — “clients MUST consider tool annotations to be untrusted unless they come from trusted servers”','Stated as general practice, not a quote from the sources above: a specific compaction threshold, explicit summarization-loss checks, trust labeling, and drop/quarantine of a poisoned span. The threshold percentage shown in the diagram is illustrative — pick and measure your own. Related background: <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic — Effective context engineering for AI agents</a>'] },
+  "prompt-eng": { tag:"Hierarchy", name:"Prompt Engineering",
+    where:"Authored and versioned upstream of any single call. The authority ranking lives in model behavior (provider-specific, produced by training); the actual enforcement boundary lives in the harness and infrastructure around the model.",
+    resp:["Rank only the authority-carrying levels — Root ▸ System ▸ Developer ▸ User ▸ Guideline — and let the higher level override the lower on conflict","Keep tool outputs, retrieved/web content, quoted text, and images in a separate “No Authority” category: data to reason over, never instructions to follow","Ignore instructions embedded in that untrusted content unless a higher-level instruction explicitly delegates authority to that source","Treat a tool's own metadata as untrusted too — MCP: “clients MUST consider tool annotations to be untrusted unless they come from trusted servers”","Back the hierarchy with real controls — authorization, isolation/sandboxing, input and output validation, egress restrictions — because the hierarchy alone enforces nothing","Structure prompts with templates, delimiters, and a small set of diverse, canonical examples rather than exhaustive edge-case lists","Request structured output and validate it against a schema, not just parsed from prose","Version and test prompts like code — controlled rollout, not free-form production edits"],
+    ach:["Avoids the category error of granting tool output developer-level authority — developer instructions carry authority, tool results carry none","Keeps untrusted content out of the instruction path, so a poisoned tool result or web page is information rather than a command","Sets expectations honestly: the hierarchy is a model-behavior convention implemented by training, contributing defense-in-depth but never substituting for authorization, isolation, validation, and egress control","Leaves room for the legitimate exception — a higher-authority message can explicitly delegate authority to a specific source","Canonical examples teach format and behavior more reliably than an exhaustive list of edge cases — “examples are the ‘pictures’ worth a thousand words” for an LLM","Schema validation catches malformed output before it reaches a downstream system","Versioning makes a regression traceable to a specific prompt change instead of a mystery"],
+    source:['<a href="https://model-spec.openai.com/2025-09-12.html" target="_blank" rel="noopener">OpenAI Model Spec (2025-09-12)</a> — chain of command: Root, System, Developer, User, Guideline; assistant and tool messages are listed under “No Authority,” along with quoted/untrusted text and multimodal data',
+      '<a href="https://model-spec.openai.com/2025-09-12.html" target="_blank" rel="noopener">OpenAI Model Spec (2025-09-12)</a> — “all other content (e.g., untrusted_text, quoted text, images, or tool outputs) should be ignored unless an applicable higher-level instruction explicitly delegates authority to it.”',
+      '<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools" target="_blank" rel="noopener">MCP tools specification (revision 2026-07-28)</a> — “clients MUST consider tool annotations to be untrusted unless they come from trusted servers”',
+      'Assumption, not a cited claim: the hierarchy is implemented by training and is provider-specific, so treat it as defense-in-depth rather than an enforced boundary (see Security &amp; Governance for the controls that are enforced)',
+      'Anthropic prompt-engineering guidance — templates, delimiters, and a small set of diverse canonical examples; “examples are the ‘pictures’ worth a thousand words”'] },
+  "rag": { tag:"Retrieval", name:"RAG &amp; Knowledge",
+    where:"A separate retrieval service, outside the model’s own weights, reached by either of two paths: application-controlled preprocessing that runs before inference, or a model-selected tool call issued mid-loop by the Harness.",
+    resp:["Build on a parsed and chunked corpus: embed for semantic search, index for keyword/hybrid search, and carry the source’s ACL and metadata onto every chunk (the extraction and chunking that produce it are the Retrieval Pipeline card)","Choose the invocation path deliberately — app-controlled preprocessing before inference, or a model-selected tool call mid-loop — because their security and operational properties differ, and mixed use is fine as long as each is a decision","On the app-controlled path, keep the query and the authorization check in application code: the model chooses neither whether nor what to retrieve, so retrieval count and latency are fixed and the trace is trivially observable","On the model-selected path, treat the model-generated query as untrusted input to the retrieval layer, and keep the authorization check entirely independent of it","Constrain the candidate set by authorization before or during retrieval — a pre-filter on the search itself, not a filter applied to results afterwards","Rerank for relevance over the already-permitted set only","Re-check permissions again immediately before context assembly, as defense-in-depth — this matters more on the model-selected path, not less, because the query was not app-authored","Budget for the model-selected path being unbounded: cap retrievals per run, and log every query the model generated alongside what it returned","Attach citations so an answer traces back to a source document the caller is allowed to read","Measure retrieval quality continuously: recall@k, MRR / nDCG, citation precision, groundedness, and index freshness — and note that all but freshness are scored against a labeled test set, which you have to build and maintain (see Retrieval Pipeline)"],
+    ach:["Grounds answers in real, current data without retraining the model","Makes the trade-off explicit rather than incidental: app-controlled preprocessing buys a narrower injection surface, predictable latency, and simple observability; model-selected retrieval buys flexibility on open-ended work where the right query isn’t known in advance","Keeps a model-generated query from ever being the thing that decides what the caller may see — the authorization check sits outside it on both paths","Closes the post-filter leak: search that ranks over documents the user can’t see can leak through result counts, ranking signals, and reranker behavior even when those documents are dropped from the final list","Two independent enforcement points mean one bug in the retrieval layer isn’t automatically a disclosure","Retrieval metrics separate “the model reasoned badly” from “the right chunk was never retrieved”","Groundedness and citation precision catch confident answers that the retrieved context does not actually support","Freshness tracking catches silent staleness or bad chunking before users do"],
+    source:['<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Anthropic — Effective context engineering for AI agents</a>: retrieval should be just-in-time via lightweight identifiers rather than pre-loading everything, which is why retrieved material enters context as a bounded, ranked slice','<a href="https://model-spec.openai.com/2025-09-12.html" target="_blank" rel="noopener">OpenAI Model Spec (2025-09-12)</a>: retrieved content carries no instruction authority — it is data to reason over, which is why provenance labelling matters once it sits in the window, and why a model-generated retrieval query is untrusted input rather than an instruction','Stated as architectural practice rather than a quote from the sources above: the two-path distinction (app-controlled preprocessing vs. model-selected tool call) and its consequences for injection surface, authorization, latency, and observability. Both shapes are in common use; neither is the default','Chunking, hybrid search, reranking, ACL pre-filtering, citation practice, and the named retrieval metrics (recall@k, MRR / nDCG, citation precision, groundedness, freshness) are established information-retrieval practice, not claims from a single cited source'] },
+  "rag-pipeline": { tag:"Pipeline", name:"Retrieval Pipeline",
+    where:"Either side of the retrieval step on the RAG card: an offline ingestion job that turns source files into an index, a query-preparation step that runs just before each search, and an offline evaluation harness that scores the whole thing against a fixed set of queries.",
+    resp:["Extract text before anything else: OCR scans and images, and use layout extraction for multi-column pages, tables, reading order, and headers/footers that should be stripped rather than chunked","Preserve the structure that carries the meaning — a table’s rows and columns, a slide’s grouping, a spreadsheet’s cells — instead of letting naive text extraction flatten it","Validate extraction as its own stage: sample the parsed output, diff it against the source, and confirm tables and reading order survived, rather than inferring parser health from the quality of a final answer","Chunk on real structure — sections, rows, slides — instead of a fixed character count wherever it happens to fall, and carry ACLs and metadata onto every chunk","Rewrite the query before searching: resolve pronouns and references to earlier turns into a standalone query, normalise or expand terminology, and optionally issue several variants","Decompose multi-part questions into separate retrievals and combine the results — “how do X and Y differ” generally needs two retrievals, because no single chunk covers both sides","Treat every rewritten query and sub-query as model-generated, untrusted input, and apply the authorization pre-filter to each one independently (see the RAG &amp; Knowledge card)","Build a labeled test set: representative queries paired with the documents judged relevant to them, with the relevance judgements maintained as the corpus changes","Run that set on every parser, chunker, embedding, or reranker change, and treat a drop as a release-blocking regression rather than noise"],
+    ach:["Puts the cap where it actually is: retrieval quality cannot exceed extraction quality, so parsing is treated as a first-class stage instead of a preprocessing detail","Catches the silent failure mode — a flattened table or an interleaved two-column page produces chunks that embed cleanly and retrieve confidently while meaning nothing","Separates the user’s phrasing from the search query, so a context-dependent follow-up (“what about the second one?”) becomes something an index can actually match","Multi-part questions stop being answered from whichever half happened to rank highest, because each part gets its own retrieval","Keeps query preparation inside the trust model: more queries after decomposition means more authorization checks, not a diluted one","Makes recall@k, MRR / nDCG, and citation precision computable at all — they are scores against a gold set, not properties you can read off a running system","Turns “retrieval feels worse this week” into a measured delta, and attributes it: with queries and expected documents held fixed, a drop after a parser or chunking change is visibly a pipeline regression rather than a model one"],
+    source:['<a href="https://model-spec.openai.com/2025-09-12.html" target="_blank" rel="noopener">OpenAI Model Spec (2025-09-12)</a> — retrieved content and tool outputs carry no instruction authority, which is why a model-generated rewritten query or sub-query stays untrusted input to the retrieval layer rather than an instruction',
+      'Document parsing, OCR, and layout/reading-order extraction — including the failure mode where structure loss is invisible downstream — are standard information-retrieval and document-processing practice; no single source is cited for them here',
+      'Query rewriting, query expansion, and question decomposition into sub-queries are long-standing information-retrieval techniques; stated as established practice rather than a claim from any one source',
+      'Labeled/gold test collections as the precondition for computing recall@k, MRR, and nDCG are foundational IR evaluation practice — the metrics are defined relative to relevance judgements. Stated as standard practice, with no single source claimed'] }
+};
+const renderPromptctx = wireGroup(PROMPTCTX, 'promptctx', 'detail-promptctx');
+renderPromptctx('ctx-window');
+</script>
+</body>
+</html>

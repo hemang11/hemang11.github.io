@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vocabulary — Around the Black Box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="page">
+    <h1 style="font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:2rem; text-transform:uppercase; margin:0;">Vocabulary &amp; Contracts</h1>
+    <dl class="glossary-list">
+      <dt>Prompt</dt>
+      <dd>Authored instruction text — the template a person or system writes and versions, before anything is assembled around it. <b>Distinguished from:</b> context. A prompt is one <i>component</i> rendered into context alongside history, tool schemas, and retrieved data — not the assembled whole. (Defining a prompt as “instructions plus context” while defining context as something containing the prompt is circular; these two entries deliberately avoid that.)</dd>
+
+      <dt>Instruction</dt>
+      <dd>A directive telling the model how to behave. Carries an authority rank by the message type it arrives in — platform/system outranks developer, which outranks user. <b>Note:</b> tool outputs and retrieved content carry <i>no</i> instruction authority; they are data, however imperative their wording. <b>Distinguished from:</b> a message, which is one turn's content whether or not it instructs.</dd>
+
+      <dt>Message</dt>
+      <dd>One turn's content in the conversation format APIs exchange — a role (system/user/assistant/tool) plus content. The unit conversation history is built from.</dd>
+
+      <dt>Context</dt>
+      <dd>The set of tokens included when sampling from the model for one call — the rendered prompt, tool schemas, retrieved data, history, examples. <b>Distinguished from:</b> everything the application stores (that is state or memory). Context is only what is assembled into this specific inference call.</dd>
+
+      <dt>State</dt>
+      <dd>Durable data recording <i>where a run has got to</i> — step reached, checkpoints, pending waits, partial results committed so far. Progress, not knowledge. <b>Distinguished from:</b> memory, which records what the run <i>knows</i>. Rule of thumb: state is what you need to resume a run; memory is what you need to inform one.</dd>
+
+      <dt>Memory</dt>
+      <dd>Retained information (facts, preferences, learned routines, past runs) pulled selectively back into context, never dumped wholesale. <b>Distinguished from:</b> state (progress toward completion) and context (the tokens for this one call).</dd>
+
+      <dt>Tool</dt>
+      <dd>A function the model can request be called, with a schema, arguments, and a result — the model's only way to act beyond producing text.</dd>
+
+      <dt>Resource</dt>
+      <dd>Application-controlled data attached to give the model context (file contents, records) — the client decides what's attached, not the model and not the user directly. Per the <a href="https://modelcontextprotocol.io/specification/2026-07-28/server/index" target="_blank" rel="noopener">MCP specification (revision 2026-07-28)</a>, resources are application-controlled, distinct from user-controlled prompts and model-controlled tools.</dd>
+
+      <dt>Skill</dt>
+      <dd>A packaged, reusable capability (instructions, and often tools) an agent can invoke for a specific kind of task, without rebuilding that capability from scratch each time.</dd>
+
+      <dt>Agent</dt>
+      <dd>A model plus instructions plus tools, run by a runtime loop that keeps calling the model until a task is done. <b>Distinguished from:</b> a workflow — see below.</dd>
+
+      <dt>Workflow</dt>
+      <dd>A system where the model and tools are orchestrated through a predefined code path — the sequence of steps is fixed in code. Per <a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Anthropic's framing</a>, an agent by contrast is a system where the model dynamically directs its own process and tool use.</dd>
+
+      <dt>Harness</dt>
+      <dd>The orchestration and scaffolding layer — decides <i>what happens next</i>: assembles context, selects and dispatches tools, applies stop conditions, runs the loop. <b>Distinguished from:</b> runtime. A harness is logic; it runs <i>on</i> a runtime.</dd>
+
+      <dt>Runtime</dt>
+      <dd>The execution environment and lifecycle infrastructure — decides <i>where and how it actually runs</i>: processes, state persistence and checkpoints, queues and concurrency, timeouts, cancellation, retries, telemetry plumbing. <b>Distinguished from:</b> harness. In casual use the two get used interchangeably, and elsewhere in this reference “harness” sometimes stands in for both; they are separable, and separating them is what makes a run durable rather than merely orchestrated.</dd>
+
+      <dt>Session</dt>
+      <dd>A continuous span of interaction with a user — may contain multiple runs.</dd>
+
+      <dt>Run</dt>
+      <dd>One complete execution of a task from start to finish — may span many turns and many steps.</dd>
+
+      <dt>Turn</dt>
+      <dd>One exchange between user and system — one user message plus the system's full response to it (which may itself involve several steps).</dd>
+
+      <dt>Step</dt>
+      <dd>One iteration of the agent loop within a turn — one model call plus whatever follows it (a tool call, a decision, or a final answer).</dd>
+
+      <dt>Trajectory</dt>
+      <dd>What a run actually did, as far as it is <b>observable</b>: the sequence of messages, tool calls and their results, state transitions, and artifacts produced. Reasoning counts only where deliberately exposed — internal reasoning may be unavailable, partial, or an unfaithful account of what drove the behaviour, so treat it as evidence, not ground truth. Graded separately from the outcome, since a run can reach the right end state the wrong way, or the reverse. <b>Distinguished from:</b> a trace — the trajectory is the behaviour; the trace is the recording of it.</dd>
+
+      <dt>Trace</dt>
+      <dd>The instrumented recording of a trajectory, emitted by observability tooling — spans, timings, token counts, and the prompt/model/harness versions in play. <b>Distinguished from:</b> trajectory. A grader reasons about the trajectory; it reads a trace to do so. Two runs can share a trajectory shape and still produce very different traces (different latencies, costs, versions).</dd>
+
+      <dt>Artifact</dt>
+      <dd>A durable output produced during a run (a file, a report, a result) — persists after the run ends. In the <a href="https://a2a-protocol.org/latest/specification" target="_blank" rel="noopener">A2A specification</a>, tasks produce artifacts as their defined output, each built from typed content parts.</dd>
+    </dl>
+  </div>
+</body>
+</html>

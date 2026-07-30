@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Foundations &amp; Model Contracts — Around the Black Box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="page">
+    <h1 style="font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:2rem; text-transform:uppercase; margin:0;">Foundations &amp; Model Contracts</h1>
+    <div class="panel-intro">The outer system turns a probabilistic model call into a useful, controlled, secure, stateful, observable, reliable, and economical product. The L1&ndash;L4 stack below is a <b style="color:var(--accent)">reference topology</b> — the usual shape of a managed-provider deployment, and a map for reasoning about who owns what — <b style="color:var(--accent)">not a required architecture</b>. The <b style="color:var(--accent)">hop count</b> on each block shows how far that layer sits from the model itself <i>in this topology</i> — only L4 ever calls it directly. Underneath all of it sits a <b style="color:var(--accent)">model gateway</b>: providers return many different response shapes, and the gateway normalizes them into one canonical <b style="color:var(--accent)">response envelope</b> — a common shape that preserves the information rather than throwing it away — which is what the harness above is written against.</div>
+
+    <button type="button" class="rail-bar" data-group="foundations" data-id="obs">
+      Observability &amp; Safety — wraps every layer <span class="line"></span>
+    </button>
+
+    <div class="diagram-row">
+      <button type="button" class="block" data-group="foundations" data-id="l1">
+        <span class="tag">L1</span>
+        <div class="name">Interface</div>
+        <div class="oneliner">Client app / browser / CLI</div>
+        <div class="hop">3 hops from the model</div>
+      </button>
+      <div class="arrow">&#8594;</div>
+      <button type="button" class="block" data-group="foundations" data-id="l2">
+        <span class="tag">L2</span>
+        <div class="name">Harness &amp; Runtime</div>
+        <div class="oneliner">Orchestration logic (&ldquo;the loop&rdquo;) + the execution environment it runs on</div>
+        <div class="hop">2 hops from the model</div>
+      </button>
+      <div class="arrow">&#8594;</div>
+      <button type="button" class="block" data-group="foundations" data-id="l3">
+        <span class="tag">L3</span>
+        <div class="name">Transport / API</div>
+        <div class="oneliner">Gateway between harness &amp; cluster</div>
+        <div class="hop">1 hop — last stop before inference</div>
+      </button>
+      <div class="arrow">&#8594;</div>
+      <div class="block">
+        <button type="button" class="block-inner" data-group="foundations" data-id="l4">
+          <span class="tag">L4</span>
+          <div class="name">Inference Serving</div>
+          <div class="oneliner">GPU / TPU cluster</div>
+          <div class="hop">0 hops — this IS where the model runs</div>
+        </button>
+        <button type="button" class="nested" data-group="foundations" data-id="model">
+          <div class="tag">—</div>
+          <div class="name">The Model</div>
+          <div class="oneliner">Only L4 ever calls this directly</div>
+        </button>
+      </div>
+    </div>
+
+    <div class="satellite-row">
+      <button type="button" class="satellite" data-group="foundations" data-id="data">Data &amp; Knowledge — two retrieval paths: app-controlled preprocessing <i>before</i> inference, or model-selected via a tool call</button>
+    </div>
+
+    <button type="button" class="rail-bar" data-group="foundations" data-id="cost">
+      Cost &amp; Resource Management — wraps every layer <span class="line"></span>
+    </button>
+
+    <div class="pattern-caption" style="border:none; padding-top:6px;"><b>Read the four layers as a reference topology, not a mandate.</b> This is the common shape when you call a managed provider over the network, and it is useful because it separates concerns that really are separate. But deployments vary: a <b>local or self-hosted</b> setup can collapse L3 and L4 into a single process, or collapse all four into one program with no network boundary anywhere, in which case the hop counts stop describing anything physical. And an application team calling a hosted API typically <b>controls L1 and L2 only</b> — provider-side L3 and L4 are somebody else's system, exposed to you as a choice of provider, model, and a handful of parameters, not as layers you can tune. Treat the hop count as distance from the weights in <i>this</i> picture, not as a count of required network boundaries.</div>
+
+    <div class="agent-compose">
+      <div class="piece"><div class="name">Model</div></div>
+      <div class="plus">+</div>
+      <div class="piece"><div class="name">Instructions</div></div>
+      <div class="plus">+</div>
+      <div class="piece"><div class="name">Tools</div></div>
+      <div class="equals">=</div>
+      <div class="result"><div class="name">Agent (config)</div></div>
+    </div>
+    <div class="agent-compose" style="margin-top:2px;">
+      <div class="piece"><div class="name">Agent</div></div>
+      <div class="plus">+</div>
+      <div class="piece" style="flex:2 1 0;"><div class="name">Runtime</div><small style="font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:var(--ink-dim); font-weight:400;">state &amp; checkpoints · tool execution &amp; sandboxing · validation · telemetry · concurrency · timeouts · cancellation — the harness logic rides on this</small></div>
+      <div class="equals">=</div>
+      <div class="result"><div class="name">Deployed Agent</div></div>
+    </div>
+    <div class="pattern-caption" style="border:none; padding-top:2px;">A production system adds a further layer: <b>deployed agent system</b> = agent + runtime + memory/data + permissions/policies + interface &amp; operations. The <b>Runtime</b> piece above is the execution environment and lifecycle infrastructure — state persistence and checkpoints, tool execution and sandboxing, validation plumbing, telemetry, concurrency, timeouts, cancellation. <b>Harness</b> is a different thing: the orchestration logic that rides on that runtime and decides what happens next — loop control, context-assembly decisions, tool selection, stop conditions. The two are separable concerns that happen to co-locate at L2, which is why the block above is labeled <b>Harness &amp; Runtime</b>; see the Vocabulary page for the full distinction.</div>
+
+    <article class="pattern-block static" aria-labelledby="h-workflow-vs-agent">
+      <div class="pattern-label"><span class="tag">DISTINCTION</span><h2 class="name" id="h-workflow-vs-agent">Workflow vs. Agent</h2></div>
+      <div class="pattern-diagram">
+        <div class="critic-wrap">
+          <div class="critic-row"><div class="mini-box">Workflow</div></div>
+          <div class="critic-branches"><div class="tag-mini approve">fixed, code-defined path — the same steps every time</div></div>
+        </div>
+        <div class="critic-wrap" style="margin-top:10px;">
+          <div class="critic-row"><div class="mini-box dark">Agent</div></div>
+          <div class="critic-branches"><div class="tag-mini reject">model dynamically decides what to do next</div></div>
+        </div>
+      </div>
+      <div class="pattern-caption">Not everything that loops is an agent — a workflow follows a path defined in code. Anthropic defines <b>workflows</b> as “systems where LLMs and tools are orchestrated through predefined code paths,” and <b>agents</b> as “systems where LLMs dynamically direct their own processes and tool usage, maintaining control over how they accomplish tasks.” <b>Most production systems are hybrids</b> of both: fixed steps where the path is known, agentic judgment where it isn't. (Source: Anthropic, “Building Effective Agents.”)</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-model-contract">
+      <div class="pattern-label"><span class="tag">CONTRACT</span><h2 class="name" id="h-model-contract">Model Contract</h2><button type="button" class="disclose" data-group="foundations" data-id="model-contract" aria-controls="detail-foundations" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Model Contract</span></button></div>
+      <div class="pattern-diagram">
+        <div class="pipeline-row">
+          <div class="fanout">
+            <div class="fo-note">raw — providers may return any of these</div>
+            <div class="fo-row">
+              <div class="mini-box">Mixed multimodal<br><small>text + image / audio in one response</small></div>
+              <div class="mini-box">Structured output<br><small>schema-constrained, not a tool call</small></div>
+              <div class="mini-box">N tool calls<br><small>several in a single response</small></div>
+            </div>
+            <div class="fo-row">
+              <div class="mini-box">Stop reason<br><small>done / length cap / content filter / cancelled</small></div>
+              <div class="mini-box">Streaming events<br><small>deltas, not one atomic object</small></div>
+              <div class="mini-box">Transport errors<br><small>API layer — not a refusal</small></div>
+            </div>
+          </div>
+          <div class="arrow">&#8594;</div>
+          <div class="mini-box dark">Model Gateway<br><small>adapter — one envelope shape, nothing dropped</small></div>
+          <div class="arrow">&#8594;</div>
+          <div class="fanout">
+            <div class="fo-note">normalized — ONE canonical envelope; these are its fields, not alternatives</div>
+            <div class="fo-row">
+              <div class="mini-box">content parts[]<br><small>ordered, typed — text / image / audio / &hellip;</small></div>
+              <div class="mini-box">structured payload<br><small>schema-constrained output, distinct from a tool call</small></div>
+            </div>
+            <div class="fo-row">
+              <div class="mini-box">tool calls[]<br><small>zero to many — never exactly one</small></div>
+              <div class="mini-box">finish reason<br><small>completed / length cap / content filter / cancelled</small></div>
+            </div>
+            <div class="fo-row">
+              <div class="mini-box">safety / refusal status<br><small>a status on the envelope, not a sibling of &ldquo;text&rdquo;</small></div>
+              <div class="mini-box">usage<br><small>input / output token counts</small></div>
+            </div>
+            <div class="fo-row">
+              <div class="mini-box">error<br><small>transport / API failure — a different thing from a refusal</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption"><b>Providers differ, and no response can honestly be reduced to three cases.</b> A single response may carry mixed multimodal content, schema-constrained structured output that is not a tool call, or several tool calls at once; it may end for any of a range of finish reasons (completed normally, hit a length cap, tripped a content filter, was cancelled); it may arrive as a stream of events rather than one atomic object; it reports token usage; and a transport/API-layer error is a different category from a model refusal. So the gateway's job is <b>not to collapse all of that into text / tool call / refusal</b> — three mutually exclusive outputs cannot carry ordered multimodal parts, N tool calls, usage, and a finish reason at the same time. Its job is to <b>normalize every provider into one common envelope shape while preserving the information</b>: an ordered list of typed <b>content parts</b>; an optional <b>structured payload</b>; <b>zero-to-many tool calls</b>; a <b>finish reason</b>; a <b>safety/refusal status</b> carried as a field <i>on</i> the envelope rather than as a rival category to text; <b>usage</b>; and a separate <b>error</b> field for transport/API failures. That envelope is <b>something your gateway/adapter layer creates and maintains</b> — not something a model or provider hands you — so the harness above it can be written once instead of once per provider. The gateway is also where the model's <b>bounds</b> (input modalities, context length, max output tokens) are surfaced as one predictable set of limits, and where <b>model selection, routing, version pinning, and fallback compatibility</b> live — never inside the model itself. One thing the gateway cannot normalize away: <b>sampling</b>, which means the same input can legitimately yield different output from one call to the next.</div>
+    </article>
+
+    <div class="detail" id="detail-foundations"></div>
+  </div>
+<script src="shared.js"></script>
+<script>
+const FOUNDATIONS = {
+  l1: { tag:"L1", name:"Interface",
+    where:"Client app / browser / CLI — wherever the human sits.",
+    resp:["Render streamed output token-by-token","Capture input and mid-run interrupts (stop/cancel)","Surface progress on long-running tasks","Present the <b>approval gate</b> for irreversible actions — show what is about to happen, to what, and hold execution until a human authorizes it"],
+    ach:["Perceived responsiveness even when the loop underneath is slow","Trust — nothing irreversible happens without an explicit approval gate in front of it. Note the distinction: an approval gate <i>authorizes</i> an action, a checkpoint only lets a run <i>resume</i>. A checkpoint is not permission. See the Security page for the gate patterns."] },
+  l2: { tag:"L2", name:"Harness & Runtime",
+    where:"Orchestration service sitting between the user and the model API — this is where “the loop” lives. Two separable concerns co-locate here: the <b>harness</b> is the logic that decides what happens next, and the <b>runtime</b> is the execution environment underneath it that makes each step durable and safely executed. See the Vocabulary page for the distinction.",
+    resp:["<b>Harness</b> — decide what goes into the active context each turn, and in what order: prompt, history, tool schemas, retrieved docs","<b>Harness</b> — keep prompt prefixes stable & deterministic so provider-side caching can key off them","<b>Harness</b> — own the tool registry and tool selection; discover/rank tools on demand instead of loading every schema","<b>Harness</b> — run plan → act → observe, apply stop conditions, and decide when the task is actually done","<b>Harness</b> — coordinate sub-agents and fan out parallel tool calls","<b>Runtime</b> — own <i>run state</i> and the persistence machinery it needs: step reached, pending waits, partial results committed so far, and the checkpoints a run can resume from. Progress, not knowledge.","<b>Runtime</b> — provide the durable stores and write/read plumbing that a memory subsystem sits on — but <b>not</b> the retention policy. <i>Which facts are kept, for how long, and which get retrieved back into context</i> belongs to the <b>memory subsystem</b>, a separate concern covered on the State, Memory &amp; Runtime page. The runtime makes memory durable; it does not decide what memory contains.","<b>Harness</b> — take what the memory subsystem returns and decide whether it earns a place in this call&rsquo;s context (the retrieval <i>decision</i> is context assembly, not persistence)","<b>Runtime</b> — actually execute the tool calls the harness chose: dispatch, sandboxing, timeouts, retries, cancellation","<b>Runtime</b> — validation plumbing: check and coerce tool arguments and model output against schemas before they re-enter the loop","<b>Runtime</b> — telemetry emission, queues, and concurrency limits"],
+    ach:["The model still needs the full logical context every call — where a provider's stateful API or prompt cache exists, it can avoid resending or recomputing the unchanged prefix, but that's provider-specific plumbing, not a universal guarantee","Keeps unused tool schemas out of context","Turns one model call into a multi-step task with real judgment about when to stop","Keeping the seam visible pays off: orchestration logic can be rewritten or tested without touching execution infrastructure, and the same harness can run on a different runtime (local process, queue worker, durable workflow engine)","Separating them is what makes a run durable rather than merely orchestrated — a crash mid-loop resumes from a checkpoint instead of starting over","Keeping state and memory apart keeps both answerable: state answers <i>where did this run get to</i>, memory answers <i>what does this run know</i>. Conflating them is how stale facts get replayed as progress, and how a resumed run inherits knowledge it was never supposed to retain.","<b>Recovery is not authorization.</b> A checkpoint buys you a resumable run; it does not make an irreversible step safe. Resuming a run that was about to send, pay, or delete still requires that action to pass an <b>approval gate</b> — and requires the runtime to recognize side effects already committed before the crash and not repeat them (idempotency keys, effect ledgers). Durability and permission are separate mechanisms; see the Security page&rsquo;s Guardrails and Human Control cards, and the tool-execution lifecycle on the Tools page."] },
+  l3: { tag:"L3", name:"Transport / API",
+    where:"Gateway / edge layer between the harness and the inference cluster.",
+    resp:["Manage the connection efficiently — persistent connections or stateful session APIs where the provider supports them","Avoid redundant retransmission or retokenization of unchanged context, where a provider-specific caching mechanism exists for it","Run content-moderation classifiers alongside inference to hide their latency — a separate concern from authorizing an action, which must complete before that action executes","Authenticate, rate-limit, route to the right backend pool"],
+    ach:["Cuts avoidable connection and retransmission overhead — the exact mechanism (persistent sockets, incremental tokenization, etc.) is provider- and deployment-specific, not a required architecture","One reported example: OpenAI's ChatGPT infrastructure write-up describes routing to newer CPU generations improving time-to-first-token by roughly 20% in that specific deployment — a data point, not a general guarantee"] },
+  l4: { tag:"L4", name:"Inference Serving",
+    where:"GPU / TPU cluster — the only layer that runs the model's weights.",
+    resp:["Cache-aware routing to the machine already holding this conversation's KV cache","Decide what cached state to evict, based on real usage data","Speculative decoding — small draft model proposes tokens, large model verifies in one pass","Split prefill (compute-bound) and decode (memory-bound) across tuned hardware","Batch concurrent requests to keep GPUs busy"],
+    ach:["Maximizes GPU utilization","Minimizes time-to-first-token and time-per-output-token"] },
+  model: { tag:"—", name:"The Model",
+    where:"The weights themselves. Everything else on this page exists so this gets called as rarely and cheaply as possible. L1-L3 never see it — only L4 does. Worth naming precisely: what sits behind a single API endpoint is often <i>more than one</i> component — a language decoder, possibly separate decoders for image or audio output, and safety classifiers alongside them. The responsibilities below describe the <b>autoregressive language-model decoder</b> specifically.",
+    resp:["<b>Scoped to an autoregressive language-model decoder:</b> predict the next token, conditioned on whatever is in the context window. That is the whole contract — no memory, no state, no side effects.","Emit tokens and nothing else — within that decoder, a tool call, a schema-conforming payload, and a refusal are all just token sequences. The provider&rsquo;s serializer and your gateway are what turn them into named fields on a response envelope.","<b>Exception 1 — other modalities can use other decoders.</b> The multimodal envelope above is not all next-token prediction. Image and audio output are commonly produced by different generative machinery, and sometimes by a wholly separate model reached through the same endpoint. &ldquo;Predicts the next token&rdquo; describes the language path, not every content part that comes back.","<b>Exception 2 — a refusal is not necessarily the decoder speaking.</b> Safety and refusal outcomes can originate <i>around</i> the model: input and output classifiers, provider-side moderation policy, or a hard stop in serving infrastructure that halts or replaces generation. Sampled tokens are one possible source of a refusal, not the only one."],
+    ach:["The “reasoning” — but it&rsquo;s opaque. You don&rsquo;t optimize what&rsquo;s inside it, only what surrounds it.","Every field the harness branches on — content parts, structured payload, tool calls, finish reason, safety status, usage, error — is assembled by the layers around the weights, not announced by the weights themselves","Scoping the claim sharpens it: even the <b>safety / refusal status</b> on the envelope is not guaranteed to be the decoder&rsquo;s output. It may be a classifier verdict or a policy decision the surrounding system wrote onto the response. So when a refusal or an unexpected content part needs debugging, the prompt is only one of the places to look — the classifiers, filters, modality decoders, and adapters around the weights are the others, and they are the parts you can actually change."] },
+  data: { tag:"↳", name:"Data & Knowledge",
+    where:"A separate storage/retrieval service. It is reached by <b>two distinct paths</b>, and which one you use changes the injection, authorization, latency, and observability boundaries: the application can retrieve <i>before</i> the model call and place results into context, or the model can request retrieval <i>mid-loop</i> as a tool call. Both are called &ldquo;RAG&rdquo;; they are not the same architecture.",
+    resp:["<b>Path 1 — application-controlled preprocessing.</b> The app runs the retrieval before inference and places the results into the assembled context deterministically. The model never chooses: the app owns the query, performs the authorization check up front, and decides exactly what text is injected. Cost and latency are a fixed, measurable pre-step.","<b>Path 2 — model-selected retrieval via a tool call.</b> The model decides whether to retrieve and what to ask for, in the middle of the loop, possibly several times. More flexible on open-ended tasks — but the query is <i>model-generated</i>, so authorization has to be enforced at the retrieval service against the caller&rsquo;s identity rather than inferred from the query, and the volume and timing of injected text are decided at runtime rather than by your code.","Whichever path: retrieved content is <b>data, not instructions</b>. It carries no instruction authority however imperative its wording — see the Vocabulary page.","Pipeline mechanics both paths share — chunking, embedding, retrieval, reranking","Knowledge base / index maintenance, freshness, dedup","Grounding sources: internal docs, web search, structured DBs"],
+    ach:["Grounds answers in real, current data","Reduces hallucination without retraining the model","<b>Preprocessing</b> buys determinism: one authorization check you can make before anything reaches the model, a fixed latency budget, and a trace where every injected token is attributable to your code. Its limit is that you must know what to fetch from the request alone.","<b>Model-selected retrieval</b> buys adaptivity on tasks where the needed evidence is only discoverable partway through — at the cost of a wider prompt-injection surface (untrusted text enters context on the model&rsquo;s initiative), an authorization surface that must assume a hostile query, a variable number of turns, and latency and observability that depend on decisions made at runtime.","Most production systems use both, deliberately: preprocess where the request already tells you what context is needed; expose retrieval as a tool where it doesn&rsquo;t."] },
+  obs: { tag:"≡", name:"Observability & Safety",
+    where:"Wraps every layer above — tracing hooks, classifiers, sandboxes. Cross-cutting, not a single hop in the request path.",
+    resp:["Trace every model call, tool call, and decision in the loop","Track latency, token cost, tool success rate, task completion rate","Run evals against known trajectories before shipping a change","Sandbox untrusted code execution; keep secrets out of context"],
+    ach:["Makes every other optimization measurable — you can't tune what you can't see","Catches unsafe or runaway agent behavior before it does damage"] },
+  cost: { tag:"≡", name:"Cost & Resource Management",
+    where:"Policy layer wrapping harness and inference routing decisions. Cross-cutting, not a single hop in the request path.",
+    resp:["Tier models — cheap/fast model for triage, escalate to a large model only when needed","Cache responses, embeddings, and tool results across requests","Track and enforce token/dollar budgets per user or task"],
+    ach:["Keeps cost-per-task bounded even as agent loops grow longer (more turns = more model calls)"] },
+  "model-contract": { tag:"CONTRACT", name:"Model Contract",
+    where:"The gateway/adapter layer that wraps every model call — it sits on the Harness (L2) side of L3 Transport/API, adjacent to it. The canonical envelope is manufactured here, in your code; it is not something the model or provider hands you.",
+    resp:['Normalize provider-specific response shapes into one common <b>envelope shape</b> — same field names, same types, same absent-vs-empty rules — for every provider you support','Reject the reductive contract: the envelope is not a three-way choice between text, a tool call, and a refusal, because three mutually exclusive cases cannot carry ordered multimodal parts, N tool calls, usage, and a finish reason at once','Preserve, do not collapse. The envelope carries all of these at once: <b>content parts</b> (an ordered, typed list — text / image / audio / …), a <b>structured payload</b> (schema-constrained output, distinct from a tool call), <b>tool calls</b> (zero to many, not exactly one), a <b>finish reason</b> (completed / length cap / content filter / cancelled), a <b>safety-refusal status</b>, <b>usage</b> (token counts), and an <b>error</b> field',
+      'Model a refusal as a <i>status on the envelope</i> — a refusal still has content parts, a finish reason, and usage — rather than as a sibling category of “text”','Keep a transport/API-layer <b>error</b> strictly separate from a refusal: one means the call failed, the other means the call succeeded and the model declined','Fold streamed deltas into the same envelope as a non-streaming call, so the harness branches on one shape either way','Surface the model’s bounds (input modalities, context length, maximum output tokens) as one predictable set of limits','Own model selection, routing, version pinning, and fallback compatibility — this is gateway work, never a decision inside the model','Preserve what can’t be normalized away: sampling means the same input can legitimately produce different output tokens on different calls'],
+    ach:['Gives the harness one stable shape to build against, so the loop isn’t forked per provider','Nothing is lost in translation — mixed multimodal parts, parallel tool calls, token usage, and why the response ended all survive the adapter and stay available for routing, cost accounting, and retry decisions','Contains provider churn — a new content-part type, a changed finish reason, a new streaming format — inside one adapter instead of spreading it through the harness','Makes the envelope an explicit, testable seam you own, rather than an assumption about model behavior that quietly breaks'],
+    source:['<a href="https://docs.claude.com/en/api/messages" target="_blank" rel="noopener">Anthropic Messages API reference</a> — a response carries an array of content blocks plus separate stop-reason and usage fields, i.e. these are already distinct fields rather than one of three mutually exclusive outputs',
+      '<a href="https://platform.openai.com/docs/api-reference/responses" target="_blank" rel="noopener">OpenAI Responses API reference</a> — a response likewise carries a list of output items alongside status, incomplete-detail, error, and usage fields',
+      'The envelope itself is your own adapter design, not a published standard — normalizing heterogeneous provider payloads behind one internal shape is ordinary integration practice, so treat the field list above as a working default rather than a specification'] }
+};
+
+const renderFoundations = wireGroup(FOUNDATIONS, 'foundations', 'detail-foundations');
+renderFoundations('l2');
+</script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Around the Black Box — Agent System Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body class="shell">
+
+  <header>
+    <h1>Around the <span>Black Box</span></h1>
+    <div class="meta">System — LLM Agent Reference · Rev 05 · 2026-07-30</div>
+  </header>
+
+  <nav class="tabs" id="tabnav" aria-label="Sections">
+    <a href="00-vocabulary.html" target="content" data-page="00-vocabulary.html">00 · Vocabulary</a>
+    <a href="01-foundations.html" target="content" data-page="01-foundations.html" class="active" aria-current="page">01 · Foundations</a>
+    <a href="02-prompt-context.html" target="content" data-page="02-prompt-context.html">02 · Prompt &amp; Context</a>
+    <a href="03-state-runtime.html" target="content" data-page="03-state-runtime.html">03 · State &amp; Runtime</a>
+    <a href="04-tools-agents.html" target="content" data-page="04-tools-agents.html">04 · Tools &amp; Agents</a>
+    <a href="05-security-governance.html" target="content" data-page="05-security-governance.html">05 · Security</a>
+    <a href="06-evaluation-ops.html" target="content" data-page="06-evaluation-ops.html">06 · Eval &amp; Ops</a>
+  </nav>
+
+  <div class="frame-wrap">
+    <iframe name="content" id="content" src="01-foundations.html" title="Section content"></iframe>
+  </div>
+
+<script>
+(function () {
+  const links = Array.from(document.querySelectorAll('#tabnav a'));
+  const frame = document.getElementById('content');
+  const pages = links.map(a => a.dataset.page);
+  const DEFAULT_PAGE = '01-foundations.html';
+
+  const slugOf = page => page.replace(/\.html$/, '');
+  const pageOf = slug => pages.find(p => slugOf(p) === slug);
+
+  function setActive(page) {
+    links.forEach(l => {
+      const on = l.dataset.page === page;
+      l.classList.toggle('active', on);
+      if (on) l.setAttribute('aria-current', 'page');
+      else l.removeAttribute('aria-current');
+    });
+  }
+
+  // Apply whatever the hash says — this is what makes deep links,
+  // browser back/forward, and reload-in-place all work.
+  function applyHash() {
+    const page = pageOf(location.hash.replace(/^#/, '')) || DEFAULT_PAGE;
+    if (frame.getAttribute('src') !== page) frame.setAttribute('src', page);
+    setActive(page);
+  }
+
+  // Tab clicks write the hash; hashchange performs the navigation.
+  // With JS off, the plain href + target="content" still works.
+  // Tabs are text-selectable; ignore the click that ends a drag-select so
+  // highlighting a tab label doesn't also navigate.
+  function selectingWithin(el) {
+    const sel = window.getSelection();
+    return !!(sel && !sel.isCollapsed && sel.toString().trim() &&
+              sel.anchorNode && el.contains(sel.anchorNode));
+  }
+
+  links.forEach(a => {
+    a.addEventListener('click', e => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+      if (selectingWithin(a)) { e.preventDefault(); return; }
+      e.preventDefault();
+      const slug = slugOf(a.dataset.page);
+      if (location.hash.replace(/^#/, '') === slug) applyHash();
+      else location.hash = slug;
+    });
+  });
+
+  window.addEventListener('hashchange', applyHash);
+
+  // Keep the hash in step if a link inside a section navigates the frame.
+  frame.addEventListener('load', () => {
+    let page = null;
+    try {
+      page = frame.contentWindow.location.pathname.split('/').pop();
+    } catch (err) {
+      return; // opaque file:// origin in some browsers; tab clicks still fine
+    }
+    if (!page || !pages.includes(page)) return;
+    setActive(page);
+    const slug = slugOf(page);
+    if (location.hash.replace(/^#/, '') !== slug) {
+      history.replaceState(null, '', '#' + slug);
+    }
+  });
+
+  if (location.hash) applyHash();
+})();
+</script>
+
+</body>
+</html>

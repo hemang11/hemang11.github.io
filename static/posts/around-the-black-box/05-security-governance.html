@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security, Human Control &amp; Governance — Around the Black Box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="page">
+    <h1 style="font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:2rem; text-transform:uppercase; margin:0;">Security, Human Control &amp; Governance</h1>
+    <div class="panel-intro">Two different failure modes, one page. A <b style="color:var(--accent)">Guardrails</b> failure is an unsafe output or action slipping through in the moment. A <b style="color:var(--accent)">governance</b> failure is nobody being able to say who did what, on whose authority, and whether it could be undone. Runtime gates check individual outputs and actions; the policy layer beneath them establishes identity, scope, and an audit trail for everything the agent does on someone's behalf.</div>
+
+    <article class="pattern-block" aria-labelledby="h-guardrails">
+      <div class="pattern-label"><span class="tag">RUNTIME</span><h2 class="name" id="h-guardrails">Guardrails</h2><button type="button" class="disclose" data-group="security" data-id="guardrails" aria-controls="detail-security" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Guardrails</span></button></div>
+      <div class="pattern-diagram">
+        <div class="fanout">
+          <div class="critic-row">
+            <div class="mini-box">Generation</div>
+            <div class="arrow">⇉</div>
+            <div class="mini-box">Content Classifier<br><small>runs concurrently, not in front of generation</small></div>
+          </div>
+          <div class="fo-note">↓ concurrent is not free — still costs, and may mean buffering output instead of streaming it ↓</div>
+          <div class="critic-branches">
+            <div class="tag-mini approve">✓ clean → delivered to user</div>
+            <div class="tag-mini reject">✗ trips mid-stream → cancel generation, withhold what was already produced</div>
+          </div>
+          <div class="fo-note">gates delivery — generation itself was not blocked</div>
+        </div>
+        <div class="critic-wrap" style="margin-top:14px;">
+          <div class="critic-row">
+            <div class="mini-box">Requested Action</div>
+            <div class="arrow">→</div>
+            <div class="mini-box">Authorization Check</div>
+            <div class="arrow">→</div>
+            <div class="mini-box dark">Execute</div>
+          </div>
+          <div class="critic-branches">
+            <div class="tag-mini reject">✗ denied → never executes</div>
+            <div class="tag-mini approve">✓ authorized → executes</div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">Two different gates on two different timing rules. <b>Content moderation</b> can run concurrently with generation, so the classifier isn't serialized in front of it — but concurrent isn't free: it still costs, it may mean buffering output instead of streaming it straight through, and if a classifier trips mid-stream the in-flight generation gets cancelled and the already-generated text withheld. So it gates <b>delivery</b>, not generation — the content may exist and still never reach the user. <b>Authorization</b> for a consequential action (send, pay, delete) is a different rule: it must fully complete before that action executes — it is never parallelized away.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-human-control">
+      <div class="pattern-label"><span class="tag">POLICY</span><h2 class="name" id="h-human-control">Human Control &amp; Governance</h2><button type="button" class="disclose" data-group="security" data-id="human-control" aria-controls="detail-security" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Human Control &amp; Governance</span></button></div>
+      <div class="pattern-diagram">
+        <div class="pipeline-row">
+          <div class="mini-box">Identity</div>
+          <div class="arrow">→</div>
+          <div class="mini-box">Least-Privilege Scope</div>
+          <div class="arrow">→</div>
+          <div class="mini-box dark">Requested Action</div>
+        </div>
+        <div class="fanout" style="margin-top:12px;">
+          <div class="fo-note">↓ approval is a policy decision over several factors weighed together ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">Consequence<br><small>blast radius</small></div>
+            <div class="mini-box">Data Sensitivity<br><small>what class of data</small></div>
+            <div class="mini-box">Scope<br><small>one record vs. bulk</small></div>
+            <div class="mini-box">Recipient<br><small>internal vs. external</small></div>
+          </div>
+          <div class="fo-row">
+            <div class="mini-box">Delegated Authority<br><small>what this identity may do for the principal</small></div>
+            <div class="mini-box">Reversibility<br><small>one input, not the whole test</small></div>
+            <div class="mini-box">Org Policy<br><small>can require approval regardless</small></div>
+          </div>
+          <div class="fo-note">↓</div>
+          <div class="mini-box dark">Approval Policy Decision</div>
+          <div class="critic-branches" style="margin-top:6px;">
+            <div class="tag-mini approve">✓ within policy → auto-proceed</div>
+            <div class="tag-mini reject">✗ over the line → human approval before execution</div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">This is the cross-cutting layer above the runtime gates: it establishes who or what the agent is acting <b>as</b> — a real, traceable user or service identity, never an anonymous actor — and scopes every permission to the minimum the task needs, so one tenant's agent or data can never reach into another's. It's the layer that guardrails, authorization, and sandboxing (see the Guardrails card and the Tools &amp; Agents page) exist to defend against three named risks: <b>prompt injection</b> (untrusted content steering the model into unintended actions), <b>data exfiltration</b> (sensitive data leaving through an unexpected channel, e.g. embedded in an innocuous-looking tool call), and <b>memory/tool poisoning</b> (an attacker corrupting stored memory or a tool's output so a later step is misled). Whether an action needs <b>human approval</b> is a policy decision rather than a single test: it weighs consequence and blast radius, data sensitivity, scope (one record or a bulk operation), the recipient or destination (internal vs. external, known vs. unknown party), the delegated authority the acting identity actually holds on the principal's behalf, and explicit org rules that can require approval regardless of the rest. <b>Reversibility</b> is one important input among those, not the whole test — which is why a <b>reversible</b> action can still require approval: a bulk edit touching sensitive records, or anything crossing an external boundary. That's not a contradiction — undoing an action doesn't undo who saw the data. Every consequential action is logged — who, what, when, on whose authority — with retention and data-residency requirements enforced centrally here, not left to each tool to handle inconsistently.</div>
+    </article>
+
+    <div class="detail" id="detail-security"></div>
+  </div>
+<script src="shared.js"></script>
+<script>
+const SECURITY = {
+  guardrails: { tag:"Runtime", name:"Guardrails",
+    where:"Wraps the Transport/API layer (L3) and the tool execution runtime — runs on every model and tool output.",
+    resp:["Classify content against policy — the classifier can run concurrently with generation instead of in front of it, but it still costs, and it may require buffering output rather than streaming it straight through","Gate delivery on the classifier verdict — if it trips mid-stream, cancel the in-flight generation and withhold content that was already produced","Authorize requested actions against an allow-list — this check must fully complete before the action executes, never in parallel with it","Sandbox untrusted code/tool execution; strip secrets from context"],
+    ach:["Moderation is kept off the critical path in front of generation, so the whole response isn't serialized behind a classifier — though it is never latency-free","Unsafe content is stopped at delivery even when generation itself was allowed to proceed","Action authorization is never optimized into parallel — a denied action must never partially execute"],
+    source:['<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools" target="_blank" rel="noopener">MCP tools specification (revision 2026-07-28)</a> — for trust and safety there SHOULD always be a human in the loop able to deny a tool invocation; clients SHOULD confirm sensitive operations and show tool inputs before the call to avoid malicious or accidental exfiltration','Same specification — servers MUST validate all tool inputs, apply access controls, rate limit invocations, and sanitize outputs; clients SHOULD validate tool results before passing them to the model','The generation-vs-delivery distinction and the sandboxing/secret-handling practice are general security engineering, not claims from a cited source'] },
+  "human-control": { tag:"Policy", name:"Human Control & Governance",
+    where:"A cross-cutting policy layer wrapping identity, permissions, and action execution across every layer — not a single hop in the request path.",
+    resp:["Propagate real identity through every delegated call — the agent acts as a specific user or service account, never anonymously","Scope permissions to least privilege and enforce tenant isolation, so one tenant's agent or data can't reach another's","Treat prompt injection, data exfiltration, and memory/tool poisoning as named risk categories — guardrails, authorization, and sandboxing (covered elsewhere) are how they're mitigated","Decide approval by policy over several factors together — consequence and blast radius, data sensitivity, scope (single record vs. bulk), recipient or destination, the delegated authority the acting identity holds on the principal's behalf, and explicit org rules — with reversibility as one important input rather than the whole test","Escalate to a human before execution whenever that policy says so, including for reversible actions — a bulk operation over sensitive records or anything crossing an external boundary can still need sign-off","Log every consequential action — who, what, when, on whose authority — and enforce retention/data-residency requirements centrally"],
+    ach:["Every action is traceable to a real, accountable identity, never an anonymous one","A compromised or misled agent stays contained by scope and tenant boundaries, not just good intentions","High-consequence, sensitive, bulk, or externally-directed actions get a human checkpoint before they execute — reversibility alone is not what earns an action a free pass","Approval can be tightened per factor — data class, scope, destination, delegated authority — without rewriting every tool that performs actions","Retention and data-residency compliance doesn't depend on each tool implementing it consistently on its own"],
+    source:['<a href="https://model-spec.openai.com/2025-09-12.html" target="_blank" rel="noopener">OpenAI Model Spec (2025-09-12)</a> — why prompt injection is a structural risk: tool outputs and quoted/untrusted content carry no instruction authority, so imperative text arriving through them must not be followed','<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools" target="_blank" rel="noopener">MCP tools specification (revision 2026-07-28)</a> — human-in-the-loop denial of tool invocations, plus access controls and audit logging of tool usage','Identity propagation, least privilege, tenant isolation, audit trails, retention and data residency are established security engineering practice — cited to no single source here, and stated without vendor-specific claims'] }
+};
+
+const renderSecurity = wireGroup(SECURITY, 'security', 'detail-security');
+renderSecurity('guardrails');
+</script>
+</body>
+</html>

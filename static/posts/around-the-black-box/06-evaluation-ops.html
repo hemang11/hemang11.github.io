@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evaluation, Observability &amp; Operations — Around the Black Box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="page">
+    <h1 style="font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:2rem; text-transform:uppercase; margin:0;">Evaluation, Observability &amp; Operations</h1>
+    <div class="panel-intro">Two different practices meet on this page: <b style="color:var(--accent)">evaluation</b> asks whether the agent is actually good — <b style="color:var(--accent)">offline</b>, on curated cases before a change ships, and <b style="color:var(--accent)">online</b>, on real production traffic afterwards — and <b style="color:var(--accent)">operations</b> asks whether the deployed system is healthy right now. The two halves of evaluation are complementary, not sequential, and neither works without operations: the traces and metrics operations collects are the same raw material an offline suite replays and an online grader scores.</div>
+
+    <article class="pattern-block" aria-labelledby="h-evaluation">
+      <div class="pattern-label"><span class="tag">OFFLINE</span><h2 class="name" id="h-evaluation">Evaluation &amp; Testing</h2><button type="button" class="disclose" data-group="evalops" data-id="evaluation" aria-controls="detail-evalops" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Evaluation &amp; Testing</span></button></div>
+      <div class="pattern-diagram">
+        <div class="critic-wrap">
+          <div class="critic-row">
+            <div class="mini-box">Proposed Change</div>
+            <div class="arrow">→</div>
+            <div class="mini-box">Offline Eval Suite</div>
+            <div class="arrow">→</div>
+            <div class="mini-box dark">LLM-as-Judge / Human Review</div>
+          </div>
+          <div class="critic-branches">
+            <div class="tag-mini reject">✗ regression found</div>
+            <div class="tag-mini approve">✓ ship</div>
+          </div>
+        </div>
+        <div class="fanout" style="margin-top:16px;">
+          <div class="critic-row"><div class="mini-box">Agent Run</div></div>
+          <div class="fo-note">measured separately first — aggregate afterwards only deliberately, keeping each dimension inspectable</div>
+          <div class="critic-row">
+            <div class="mini-box">Outcome Grader<br><small>final state</small></div>
+            <div class="mini-box">Trajectory Grader<br><small>the observable record</small></div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">Final text alone under-grades an agent: work happens across many turns of tool calls and state changes, and mistakes can “propagate and compound” across turns — while frontier models sometimes find creative solutions that beat a static eval’s expectations, so grading only the output risks both false negatives and missing genuine progress. Anthropic recommends measuring <b>outcome</b> and <b>trajectory</b> separately: outcome is the actual environmental state — did a reservation really get created in the database, not just did the agent say it booked one — while trajectory is the <b>observable record</b> of the run: the messages, the tool calls and their results, the state transitions, and the artifacts produced, plus the model’s reasoning only where it is deliberately exposed. A grader can only see what the system actually exposes; internal reasoning may be unavailable, partial, or not a faithful account of what actually drove the behaviour, so it is evidence rather than ground truth about the model’s process. Trajectory is where questions like whether a support agent stayed within turn limits or behaved appropriately get answered — dimensions the final state alone can’t measure. Measuring the two separately is the right <b>default</b>, because one blended score hides which dimension failed; combining them afterwards is legitimate once they have been measured separately — a release gate can require outcome-pass <i>and</i> trajectory-pass, and a weighted aggregate can be tracked over time — provided the per-dimension results stay preserved and inspectable. Deterministic, code-based grading fits best where success is objectively checkable, especially for coding agents; for non-deterministic outputs, run multiple trials and report <b>pass@k</b> (at least one success in k attempts) and <b>pass^k</b> (all k attempts succeed) — a 0% pass rate across many trials “is most often a signal of a broken task, not an incapable agent.” Where an LLM-as-judge grades instead, it must be closely calibrated against human experts, score each dimension separately against a structured rubric instead of collapsing straight to one holistic number, include an “Unknown” escape hatch for low confidence, and get periodic — not constant — human review once the system is proven. Red-team with balanced problem sets that test both where a behavior should and shouldn’t trigger, and design evals agents “shouldn’t be able to easily ‘cheat,’” using adversarial user personas (Anthropic cites τ2-Bench) to stress-test conversational agents through extended, adversarial conversations. (Source: Anthropic, agent evaluation guidance.) This is the <b>offline</b> half of the practice only — a curated suite scores a fixed set of cases someone thought to write down, which is why it pairs with online evaluation on live traffic rather than standing alone as a ship gate.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-suites">
+      <div class="pattern-label"><span class="tag">OFFLINE</span><h2 class="name" id="h-suites">Regression vs. Capability Suites</h2><button type="button" class="disclose" data-group="evalops" data-id="suites" aria-controls="detail-evalops" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Regression vs. Capability Suites</span></button></div>
+      <div class="pattern-diagram">
+        <div class="fanout">
+          <div class="critic-row"><div class="mini-box">Curated Offline Cases</div></div>
+          <div class="fo-note">↓ two instruments, two different questions ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">Regression Suite<br><small>“did we break what worked?”<br>cases it already passes<br>expect ~100% — gates the release</small></div>
+            <div class="mini-box">Capability Suite<br><small>“can it do this at all?”<br>hard, often-failing cases<br>expect partial — a benchmark to move</small></div>
+          </div>
+          <div class="fo-note">↓ both run as multiple trials — pass@k / pass^k ↓</div>
+          <div class="critic-branches">
+            <div class="tag-mini reject">✗ any regression fail → act, block ship</div>
+            <div class="tag-mini approve">✓ capability score up → real gain</div>
+          </div>
+          <div class="loopback" style="margin-top:10px;">Bug fixed, or capability case now passing → <b>graduates into the regression suite</b></div>
+        </div>
+      </div>
+      <div class="pattern-caption">The “offline suite” is really two instruments answering two different questions, and using one as the other is why teams get surprised. A <b>regression suite</b> asks <i>did we break something that used to work?</i> It is built from cases the system already passes — including specific past failures captured as tests once they were fixed — so its expected pass rate is essentially 100%, and any failure is a signal to act on. That is what makes it usable as a release gate. It grows monotonically and gets cheap to run, and its weakness is that it only covers ground you have already walked: it can be entirely green while the system is bad at everything nobody thought to write a case for. A <b>capability suite</b> asks <i>can the system do this at all, and how well?</i> It is built from hard, representative, often currently-failing cases that describe the target rather than the status quo, so a partial pass rate is the normal and useful state — the number is a benchmark to move, not a threshold to clear. It is what tells you whether a model, prompt, or harness change bought real capability. Its weakness is the mirror image: it is noisier and more expensive, and a rising score does not prove that nothing regressed. Anthropic draws exactly this split — capability evals “should start at a low pass rate, targeting tasks the agent struggles with and giving teams a hill to climb,” while regression evals “should have a nearly 100% pass rate” and “protect against backsliding.” You need both, because substituting one for the other fails in a specific way: gating releases on a capability suite blocks shipping on cases that were never passing, and judging progress by a regression suite tells you only that you have not gone backwards, which is not the same thing as having got better. The two connect by <b>graduation</b> — Anthropic notes that capability evals whose pass rates have risen can “graduate” into a regression suite run continuously, and the same move applies to a fixed bug, which becomes a permanent regression case. Both suites want multiple trials rather than a single run, and a capability suite most of all: partial success is its expected state, so <b>pass@k</b> and <b>pass^k</b> carry information one attempt cannot. And both are still offline — drift means a green regression suite and a climbing capability score can coexist with live behaviour degrading on traffic neither suite contains, which is why online evaluation sits alongside them.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-online-eval">
+      <div class="pattern-label"><span class="tag">ONLINE</span><h2 class="name" id="h-online-eval">Production Evaluation</h2><button type="button" class="disclose" data-group="evalops" data-id="online-eval" aria-controls="detail-evalops" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Production Evaluation</span></button></div>
+      <div class="pattern-diagram">
+        <div class="fanout">
+          <div class="critic-row"><div class="mini-box">Live Production Traffic</div></div>
+          <div class="fo-note">↓ graded from the same traces operations already collects ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">Production Sampling<br><small>grade real traffic continuously</small></div>
+            <div class="mini-box">User Feedback<br><small>explicit + implicit signals</small></div>
+            <div class="mini-box">Shadow Eval<br><small>candidate runs, output not served</small></div>
+            <div class="mini-box">A/B Test<br><small>live traffic, real outcome metrics</small></div>
+            <div class="mini-box">Transcript Review<br><small>humans read real trajectories</small></div>
+          </div>
+          <div class="fo-note">↓ new failure modes become new offline cases ↓</div>
+          <div class="mini-box dark">Graded Signal → back into the offline suite</div>
+        </div>
+      </div>
+      <div class="pattern-caption">A passing offline suite is not evidence that the live system is fine. Anthropic frames automated evals, production monitoring, A/B tests, user feedback, and transcript review as <b>complementary</b> methods — so evaluation continues after the change ships, and it runs on the same traces operations is already collecting. <b>Production sampling</b> continuously pulls real traffic and grades it, instead of only re-scoring curated offline cases. <b>User feedback</b> supplies two kinds of signal: explicit (thumbs, reports, ratings) and implicit (abandonment, retries, users correcting or rewriting the agent's output) — the implicit ones are often the earlier warning. <b>Distribution drift</b> is the reason this matters: the real input distribution keeps moving away from whatever the offline suite covers, so the suite can stay green while live quality degrades on inputs it never contained. <b>Shadow evaluation</b> runs a candidate version against real traffic without serving its output, so it can be compared on realistic inputs before any user is exposed to it. <b>A/B testing</b> then compares versions on live traffic against real outcome metrics — task completion, escalation rate, cost per successful task — not just grader scores. <b>Transcript review</b> keeps humans reading actual production trajectories, which is what surfaces failure modes no pre-written eval anticipated; each one found becomes a new offline case, which is how the two halves feed each other.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-ops">
+      <div class="pattern-label"><span class="tag">PRODUCTION</span><h2 class="name" id="h-ops">Operations</h2><button type="button" class="disclose" data-group="evalops" data-id="ops" aria-controls="detail-evalops" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Operations</span></button></div>
+      <div class="pattern-diagram">
+        <div class="critic-wrap">
+          <div class="pipeline-row">
+            <div class="mini-box">Trace / Metrics / Logs</div>
+            <div class="arrow">→</div>
+            <div class="mini-box">SLOs &amp; Cost-per-Task</div>
+            <div class="arrow">→</div>
+            <div class="mini-box dark">Canary</div>
+          </div>
+          <div class="critic-branches">
+            <div class="tag-mini reject">✗ regression → rollback</div>
+            <div class="tag-mini approve">✓ healthy → promote</div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">Building the agent is not the same as running it. Every model call, tool call, and decision gets traced, and latency is decomposed by layer — harness, transport, inference, tools — instead of reported as one aggregate number, so a slowdown can be located rather than just noticed. Cost is tracked per <b>successful task</b>, not per call: a cheap call that fails and needs retries can cost more per completed outcome than an expensive call that works the first time. Alerts fire on defined SLOs, not raw error rate alone, and every trace carries version provenance — which prompt, model, and harness version produced it. Changes get canaried before a full rollout, and rollback stays fast and cheap. When an incident hits, response works because the tracing, metrics, and version provenance already exist — not because someone starts investigating from zero. Retention, privacy, and data-residency requirements apply to traces and logs the same as they apply to primary data. Those same traces are what online evaluation samples and grades — operations collects the evidence, production evaluation scores it.</div>
+    </article>
+
+    <div class="detail" id="detail-evalops"></div>
+  </div>
+<script src="shared.js"></script>
+<script>
+const EVALOPS = {
+  evaluation: { tag:"Offline", name:"Evaluation & Testing",
+    where:"A separate offline pipeline, run before any harness, prompt, or model change goes live — and, for outcome/trajectory grading, run against the observable record of completed agent runs. One half of evaluation; the online half runs on production traffic after the change ships.",
+    resp:["Measure outcome (the actual environmental state — a refund posted, a reservation created) and trajectory separately first, rather than emitting one blended score that hides which dimension failed","Define trajectory as the observable record: messages, tool calls and their results, state transitions, and artifacts produced — plus the model's reasoning only where the system deliberately exposes it","Treat exposed reasoning as evidence, not ground truth — internal reasoning may be unavailable, partial, or an unfaithful account of what actually drove the behaviour","Aggregate deliberately when a single number is genuinely needed — a release gate requiring outcome-pass and trajectory-pass, or a weighted score for trend tracking — while keeping every per-dimension result preserved and inspectable","Use deterministic, code-based grading wherever success is objectively checkable, especially for coding agents","For non-deterministic outputs, run multiple trials and report pass@k (at least one success in k attempts) and pass^k (all k attempts succeed)","Calibrate any LLM-as-judge grader against human experts, using a structured rubric that scores each dimension separately and includes an “Unknown” option for low confidence","Red-team with balanced problem sets and adversarial user personas, built so the eval resists being “cheated”"],
+    ach:["Catches regressions that surface several turns deep, since mistakes can “propagate and compound” across a multi-turn run","Separates “did it actually work” from “did it get there the right way,” so a failure points at a named dimension instead of at one opaque number — and any roll-up used as a ship gate is built from results that stay inspectable","Tells a genuinely broken task apart from a genuinely weak agent — a 0% pass rate across many trials “is most often a signal of a broken task, not an incapable agent”","Keeps model-based grading trustworthy at scale instead of quietly drifting from human judgment"],
+    source:['<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener">Anthropic — Demystifying evals for AI agents</a> (outcome vs. trajectory grading, pass@k / pass^k, LLM-as-judge calibration, adversarial evaluation)','τ2-Bench, cited by Anthropic as an example of adversarial multi-turn agent evaluation'] },
+  suites: { tag:"Offline", name:"Regression vs. Capability Suites",
+    where:"Inside the offline evaluation pipeline. The curated case set is maintained as two suites with different membership rules, different expected pass rates, and different jobs in the release process — one is a gate, the other is a benchmark.",
+    resp:["Maintain two suites with explicit membership rules: the regression suite holds cases the system already passes, the capability suite holds hard, representative cases it often does not","Hold the regression suite to a near-100% expected pass rate and gate releases on it, so a single red case is an actionable signal rather than background noise","Treat the capability suite’s partial pass rate as the normal state — report it as a number to move over time, never as a ship / no-ship threshold","Graduate cases between the two: a capability case whose pass rate has risen, and any bug once fixed, becomes a permanent regression case","Run both as multiple trials and report pass@k and pass^k — the capability suite needs this most, because partial success is exactly what it expects","Keep the regression suite cheap enough to run on every change, and accept that the capability suite is noisier and more expensive and can run on a slower cadence","Treat both as offline instruments and pair them with online evaluation, since drift can degrade live behaviour while both suites still look fine"],
+    ach:["Prevents the two characteristic mistakes: gating a release on cases that were never passing, and reading “we have not gone backwards” as “we have got better”","Keeps a failing test meaningful — in the regression suite a failure always warrants action, so nobody learns to ignore red","Gives model, prompt, and harness changes an honest capability number to move, kept separate from the pass/fail release gate","Turns every fixed bug into permanent protection instead of a one-off patch, which is how the regression suite grows to reflect real usage","Makes explicit that a fully green regression suite says nothing about ground no case covers — the gap the capability suite and online evaluation exist to close"],
+    source:['<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener">Anthropic — Demystifying evals for AI agents</a>: capability evals “should start at a low pass rate, targeting tasks the agent struggles with,” regression evals “should have a nearly 100% pass rate” and “protect against backsliding,” and high-scoring capability evals can “graduate” to become a continuously run regression suite','The same guide recommends sourcing cases from the bug tracker and support queue, since “converting user-reported failures into test cases ensures your suite reflects actual usage”','Capturing each fixed defect as a permanent test is long-standing software-testing practice — standard practice, no single canonical source'] },
+  "online-eval": { tag:"Online", name:"Production Evaluation",
+    where:"On live production traffic, after a change has shipped — reading the same traces, metrics, and transcripts the operations layer already collects. The complement to the offline suite, not a stage after it.",
+    resp:["Continuously sample real production traffic and grade it, rather than only re-scoring the curated offline set","Collect user feedback in both forms: explicit (thumbs, reports, ratings) and implicit (abandonment, retries, users correcting or rewriting the output)","Watch for distribution drift — track how far live inputs have moved from what the offline suite actually covers","Run candidate versions in shadow mode against real traffic without serving their output, so they can be compared before any user is exposed","A/B test versions on live traffic against real outcome metrics (task completion, escalation rate, cost per successful task), not grader scores alone","Put human transcript review on a regular cadence — people reading actual production trajectories end to end","Feed every newly discovered failure mode back into the offline suite as a permanent regression case"],
+    ach:["Catches degradation that a green offline suite hides, because the live input distribution has moved away from the cases the suite contains","Turns real user behaviour into an evaluation signal — implicit signals like retries and abandonment usually move before anyone files a complaint","Lets a candidate version be judged on realistic inputs before it affects a single user, and then on real outcomes rather than proxy scores once it does","Surfaces failure modes nobody thought to write an eval for, which is the only way the offline suite grows to cover reality","Makes offline and online evaluation compound: production finds the problem, the offline suite makes sure it never comes back"],
+    source:['<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener">Anthropic — Demystifying evals for AI agents</a>, which treats automated evals, production monitoring, A/B tests, user feedback, and transcript review as complementary methods rather than a pre-ship gate followed by separate operations','Sampling, shadow deployment, A/B testing, and drift monitoring are general production-ML and SRE practice, not specific to any one vendor'] },
+  ops: { tag:"Production", name:"Operations",
+    where:"The runtime observability and release-management layer wrapping every layer of the deployed system, from the interface down to inference serving.",
+    resp:["Trace every model call, tool call, and decision — not just the final output","Decompose latency by layer (harness, transport, inference, tools) instead of reporting one aggregate number","Track cost-per-successful-task, not cost-per-call, and attach version provenance — which prompt, model, and harness version produced this trace","Define SLOs and alert on those, not on raw error rate alone","Canary every change before full rollout, and keep rollback fast and cheap","Apply the same retention, privacy, and data-residency requirements to traces and logs as to primary data"],
+    ach:["Turns “it feels slow” into “which layer is slow” — an actionable signal instead of a felt one","The trace pipeline doubles as the input to online evaluation — the same records that explain an incident are the ones a production grader samples and a reviewer reads","Surfaces the retry-heavy path that is secretly the expensive one, even though each individual call looks cheap","Lets incident response start from existing evidence instead of from zero, and lets a bad rollout get undone quickly instead of debugged live","Keeps operational data under the same compliance bar as the data it describes"] }
+};
+
+const renderEvalops = wireGroup(EVALOPS, 'evalops', 'detail-evalops');
+renderEvalops('evaluation');
+</script>
+</body>
+</html>

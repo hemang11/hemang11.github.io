@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tools, Agents &amp; Protocols — Around the Black Box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="page">
+    <h1 style="font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:2rem; text-transform:uppercase; margin:0;">Tools, Agents &amp; Protocols</h1>
+    <div class="panel-intro">The richest part of the map: the loop that actually repeats on every turn, the shapes multiple agents take when one agent isn't enough, and the wire formats that let agents talk to tools and to each other.</div>
+
+    <div class="panel-intro" style="margin-top:-6px;">First, the loop itself. Only the <b style="color:var(--accent)">Model Call</b> node ever touches the model — everything else on this row is harness/orchestration work happening around it.</div>
+
+    <div class="loop-row">
+      <button type="button" class="loop-node" data-group="loop" data-id="user"><span class="tag">1</span><div class="name">User Turn</div></button>
+      <div class="arrow">&#8594;</div>
+      <button type="button" class="loop-node" data-group="loop" data-id="assemble"><span class="tag">2</span><div class="name">Harness Assembles</div></button>
+      <div class="arrow">&#8594;</div>
+      <button type="button" class="loop-node model" data-group="loop" data-id="modelcall"><span class="tag">3 — touches the model</span><div class="name">Model Call</div></button>
+      <div class="arrow">&#8594;</div>
+      <button type="button" class="loop-node" data-group="loop" data-id="decide"><span class="tag">4</span><div class="name">Harness Decides</div></button>
+    </div>
+
+    <div class="loop-branch">
+      <button type="button" class="loop-node" data-group="loop" data-id="toolexec"><span class="tag">4a — tool call</span><div class="name">Execute Tool → back to step 2</div></button>
+      <button type="button" class="loop-node" data-group="loop" data-id="done"><span class="tag">4b — final answer</span><div class="name">Return to User → loop ends</div></button>
+    </div>
+
+    <div class="loopback">This whole row (steps 2 → 3 → 4) <b>repeats</b> every time step 4 branches to "tool call" — until the model gives a final answer, the user cancels, or a turn/budget limit is hit.</div>
+
+    <div class="panel-intro" style="margin-top:2px;">Step <b style="color:var(--accent)">4a</b> above is a single box, but it is not a single action. Expanding it is the next card: almost everything in the tool-execution lifecycle is harness work happening before and after the tool itself runs.</div>
+
+    <article class="pattern-block" aria-labelledby="h-tool-lifecycle">
+      <div class="pattern-label"><span class="tag">LIFECYCLE</span><h2 class="name" id="h-tool-lifecycle">Tool Execution Lifecycle</h2><button type="button" class="disclose" data-group="tools" data-id="tool-lifecycle" aria-controls="detail-tools" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Tool Execution Lifecycle</span></button></div>
+      <div class="pattern-diagram">
+        <div class="fanout">
+          <div class="mini-box">Tool Registry / MCP Server</div>
+          <div class="fo-note">↓ what the model actually reasons over ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">Discovery<br><small>agent learns the tool exists; load schemas on demand, not all at once</small></div>
+            <div class="mini-box">Description + JSON Schema<br><small>the only signal the model has — ambiguity here causes misuse</small></div>
+          </div>
+          <div class="fo-note">↓ model emits a call — everything in this row runs before anything executes ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">Validate Args<br><small>against the schema; never trust model output</small></div>
+            <div class="mini-box">Identity + Authorization<br><small>runs as a scoped identity, checked pre-execution</small></div>
+            <div class="mini-box">Broker Secrets<br><small>runtime injects credentials; never in model context</small></div>
+            <div class="mini-box dark">Classify Side Effects<br><small>read-only / mutating / irreversible — drives all of the below</small></div>
+            <div class="mini-box">Approval<br><small>human gate for consequential calls</small></div>
+          </div>
+          <div class="fo-note">↓ execution ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">Dry-run / Preview<br><small>show what would happen first</small></div>
+            <div class="mini-box">Timeout<br><small>bound how long a call may run</small></div>
+            <div class="mini-box">Idempotency Key<br><small>so a retry can't double-execute a mutation</small></div>
+            <div class="mini-box">Retries<br><small>budget + backoff; a repeated read may not return the same thing</small></div>
+            <div class="mini-box">Sandbox + Egress Control<br><small>isolate; restrict outbound network</small></div>
+          </div>
+          <div class="fo-note">↓ after the call returns ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">Compensate / Reconcile<br><small>only where an inverse op exists; otherwise reconcile + recover forward</small></div>
+            <div class="mini-box">Normalize Result<br><small>consistent model-consumable shape</small></div>
+            <div class="mini-box">Truncate<br><small>one huge output can't blow the context window</small></div>
+            <div class="mini-box">Audit<br><small>call, args, identity, outcome</small></div>
+          </div>
+          <div class="mini-box dark">Result into context → back to step 2</div>
+        </div>
+      </div>
+      <div class="pattern-caption">Executing a tool is what step 4a of the loop above actually does, and it is a lifecycle rather than one action. <b>Discovery</b> is how the agent learns a tool exists — load schemas on demand rather than stuffing every schema into context. A tool's <b>description and JSON Schema</b> are what the model reasons over, so ambiguous ones cause misuse. Then, before anything executes: <b>validate arguments</b> against the schema, because the model's arguments are never trustworthy; the call runs as a specific <b>identity with scoped permissions</b>, checked before execution rather than after; and the runtime <b>brokers secrets</b>, injecting credentials at call time so they never enter model context. <b>Side-effect classification</b> — read-only vs. mutating vs. irreversible — drives everything downstream: whether a call needs an <b>approval</b> gate with a human in the loop, whether a <b>dry-run</b> should preview what would happen before doing it, what <b>timeout</b> bounds it, whether an <b>idempotency key</b> is required so a retry can't double-execute a mutation, and what the <b>retry</b> policy is. Two things are easy to get wrong here. First, <b>read-only does not mean free to repeat</b>: it means no external state is mutated. A read can still consume quota, trigger metering or billing, hit a rate limit, and return a non-repeatable result — a paginated or time-sensitive read can legitimately differ between attempts, so a retry is not automatically equivalent to the first call. Retries therefore need a budget, backoff, and the assumption that the second answer may not match the first. Second, <b>&ldquo;undo&rdquo; is not universally available, and designing as if it were is the actual error</b>. A <b>compensating action</b> works only where a semantically inverse operation exists — refund a charge, cancel a booking. You cannot un-send an email, un-publish a post, or un-disclose data. For genuinely irreversible effects the real answer is <b>prevention</b> before execution (an approval gate, narrowly scoped permissions and arguments), then <b>reconciliation</b> — detect and record the divergence between intended and actual state — and <b>forward recovery</b>: an action that moves to an acceptable state, such as sending a correction notice, rather than pretending to roll back. Execution itself is <b>sandboxed with egress control</b>, so a compromised tool can't reach the network to exfiltrate. Afterwards the raw output is <b>normalized</b> into a consistent model-consumable shape and <b>truncated</b> so one huge result can't blow the context window, and the call — its arguments, its identity, its outcome — is <b>audited</b>. MCP is explicit that even a tool's own metadata is untrusted, not just its output: &ldquo;clients MUST consider tool annotations to be untrusted unless they come from trusted servers.&rdquo; Two changes in <b>MCP protocol revision 2026-07-28</b> (the revision this page is pinned to) land directly on this lifecycle. MCP is now <b>stateless</b> — &ldquo;MCP has no protocol-level session, so a server cannot rely on implicit per-connection state&rdquo; — so a server that needs state across calls returns an <b>explicit opaque handle</b> from a creation tool and accepts it as an ordinary argument on later calls, and it <b>should validate the caller’s authorization against that handle on every call (the spec says SHOULD; treating it as mandatory is this reference’s recommendation, not a spec requirement)</b>: a handle is a name, not a capability. Authorization and idempotency therefore become per-call checks rather than per-session assumptions — there is no session for either to hang on. And <b>Multi Round-Trip Requests</b> give the approval/elicitation gate above a protocol-level form: rather than calling back to the client, a server returns an InputRequiredResult (resultType &ldquo;input_required&rdquo;) whose inputRequests field says what it needs, and the client retries the original request with inputResponses.</div>
+    </article>
+
+    <div class="panel-intro" style="margin-top:2px;">Once one loop isn't enough, agents compose into patterns. The first three below are the load-bearing shapes; the card after them names the rest of the taxonomy and cross-references back to these three rather than re-diagramming the same shape twice.</div>
+
+    <article class="pattern-block" aria-labelledby="h-pat-orch">
+      <div class="pattern-label"><span class="tag">FAN-OUT</span><h2 class="name" id="h-pat-orch">Orchestrator → Workers</h2><button type="button" class="disclose" data-group="tools" data-id="pat-orch" aria-controls="detail-tools" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Orchestrator → Workers</span></button></div>
+      <div class="pattern-diagram">
+        <div class="fanout">
+          <div class="mini-box">Research Orchestrator</div>
+          <div class="fo-note">↓ splits task into 3 independent parts ↓</div>
+          <div class="fo-row">
+            <div class="mini-box">Worker A<br><small>Source 1</small></div>
+            <div class="mini-box">Worker B<br><small>Source 2</small></div>
+            <div class="mini-box">Worker C<br><small>Source 3</small></div>
+          </div>
+          <div class="fo-note">↓ results merged back ↓</div>
+          <div class="mini-box dark">Combined Answer</div>
+        </div>
+      </div>
+      <div class="pattern-caption">One orchestrator agent breaks the task into independent pieces, runs a worker agent on each <b>in parallel</b>, then merges their outputs. <b>Use when</b> subtasks don't depend on each other's results.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-pat-pipe">
+      <div class="pattern-label"><span class="tag">SEQUENTIAL</span><h2 class="name" id="h-pat-pipe">Pipeline / Handoff</h2><button type="button" class="disclose" data-group="tools" data-id="pat-pipe" aria-controls="detail-tools" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Pipeline / Handoff</span></button></div>
+      <div class="pattern-diagram">
+        <div class="pipeline-row">
+          <div class="mini-box">Planner Agent</div>
+          <div class="arrow">→</div>
+          <div class="mini-box">Coder Agent</div>
+          <div class="arrow">→</div>
+          <div class="mini-box dark">Tester Agent</div>
+        </div>
+        <div class="fo-note">passes a typed task contract, not its full raw output — goal, acceptance criteria, required context, artifact references</div>
+      </div>
+      <div class="pattern-caption">Each agent finishes its specialized step and hands the next agent a <b>typed contract</b> (not its raw transcript) — nothing runs at the same time. Passing full output is usually undesirable: it breaks context isolation and lets tokens grow unbounded down the chain. <b>Use when</b> steps are inherently ordered and each needs a different specialization or tool-set.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-pat-crit">
+      <div class="pattern-label"><span class="tag">QUALITY GATE</span><h2 class="name" id="h-pat-crit">Worker + Critic Loop</h2><button type="button" class="disclose" data-group="tools" data-id="pat-crit" aria-controls="detail-tools" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Worker + Critic Loop</span></button></div>
+      <div class="pattern-diagram">
+        <div class="critic-wrap">
+          <div class="critic-row">
+            <div class="mini-box">Drafting Agent</div>
+            <div class="arrow">→</div>
+            <div class="mini-box dark">Critic Agent</div>
+          </div>
+          <div class="critic-branches">
+            <div class="tag-mini reject">✗ reject → back to Drafting Agent (bounded attempts)</div>
+            <div class="tag-mini approve">✓ approve → done</div>
+            <div class="tag-mini reject">⚑ budget exhausted → escalate to human / fall back</div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">The Critic agent checks the Worker's draft against criteria. Rejected work loops back for another attempt; approved work ships. Three things this pattern requires to be safe: the iteration count must be <b>bounded</b> — never loop forever; the acceptance criteria must be <b>measurable</b>, because a vague &ldquo;is it good?&rdquo; critic can't converge; and there must be an <b>escalation path when convergence fails</b> — hand off to a human or fall back, rather than spinning. That's the same bounded-retry-plus-separate-escalation policy shape as Failure &amp; Recovery on the State &amp; Runtime page. <b>Use when</b> correctness matters more than speed — a second opinion catches what the worker misses.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-more-patterns">
+      <div class="pattern-label"><span class="tag">TAXONOMY</span><h2 class="name" id="h-more-patterns">More Agentic Patterns</h2><button type="button" class="disclose" data-group="tools" data-id="more-patterns" aria-controls="detail-tools" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for More Agentic Patterns</span></button></div>
+      <div class="pattern-diagram">
+        <div class="fanout">
+          <div class="mini-box">Incoming Task</div>
+          <div class="fo-note">↓ the shapes not already drawn above get real weight here — the rest cross-reference the cards above ↓</div>
+          <div class="fo-row">
+            <div class="mini-box dark">Routing<br><small>classify input → send to the specialized handler for that category</small></div>
+            <div class="mini-box dark">Voting<br><small>run the same task N times → aggregate/vote for confidence</small></div>
+            <div class="mini-box dark">Plan-and-Execute<br><small>agent generates an explicit plan, then executes it, re-planning when a step fails</small></div>
+          </div>
+          <div class="fo-row">
+            <div class="mini-box">Prompt Chaining<br><small>sequenced calls — can be one agent, not necessarily several</small></div>
+            <div class="mini-box">Shared Workspace<br><small>agents read/write one common state</small></div>
+            <div class="mini-box">Hierarchical Supervision<br><small>supervisor can interrupt/redirect, not just dispatch once</small></div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">Anthropic's building-effective-agents guide names <b>five</b> patterns. Two are already diagrammed above and are only cross-referenced here rather than re-drawn: <b>Orchestrator-Workers</b> (a central LLM dynamically decomposes a task and delegates to workers — the Fan-out shape above) and <b>Evaluator-Optimizer</b> (one LLM generates while another critiques in a loop until criteria are met — the Worker + Critic shape above). <b>Prompt Chaining</b> is sequential LLM calls, each processing the prior step's output, with optional checkpoints between. It shares a sequential <i>shape</i> with the Pipeline / Handoff card above, but the two are not the same thing and shouldn't be equated: chaining is about <b>sequenced calls</b>, and several of those calls can live inside <b>one</b> agent — it does not inherently require multiple agents with separate tool-sets, which is what a handoff pipeline is. The remaining two Anthropic patterns are <b>Routing</b> — classify an input, then direct it to specialized downstream handling built for that category — and <b>Parallelization</b>, which has two variants: <i>sectioning</i> splits a task into independent subtasks run at once (again the Fan-out shape above), while <i>voting</i> runs the identical task several times and aggregates the results for confidence. Beyond Anthropic's five, three more shapes are common across agent frameworks generally. <b>Plan-and-Execute</b>: the agent first produces an <i>explicit plan</i>, then executes its steps, typically re-planning when a step fails or reality diverges from the plan. What separates it from plain chaining is that the plan is a first-class artifact the agent generates at run time, not a path fixed in code. <b>Shared Workspace</b>: agents read and write one common piece of state instead of passing messages directly to each other. <b>Hierarchical Supervision</b>: a supervisor agent continuously monitors workers and can interrupt or redirect them mid-task, not just dispatch them once.</div>
+    </article>
+
+    <div class="panel-intro" style="margin-top:2px;">Finally, the wire formats — and there are more than two. The first card below covers the tool-facing surface: each provider's own function-calling format, adapting an existing OpenAPI service into a tool, and MCP. The second covers everything that isn't agent→tool: agent→agent over A2A, and agent→UI over a streamed event envelope.</div>
+
+    <article class="pattern-block" aria-labelledby="h-tool-protocols">
+      <div class="pattern-label"><span class="tag">PROTOCOL</span><h2 class="name" id="h-tool-protocols">Tool-Facing Protocols</h2><button type="button" class="disclose" data-group="tools" data-id="tool-protocols" aria-controls="detail-tools" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Tool-Facing Protocols</span></button></div>
+      <div class="pattern-diagram">
+        <div class="comms-wrap">
+          <div class="comms-row">
+            <div class="mini-box">Agent</div>
+            <div class="labeled-arrow"><span class="arrow-glyph">→</span><small>tool name + args</small></div>
+            <div class="mini-box dark">Tool / Runtime</div>
+            <div class="labeled-arrow"><span class="arrow-glyph">→</span><small>result</small></div>
+            <div class="mini-box">Agent</div>
+          </div>
+          <div class="fanout">
+            <div class="fo-note">↓ three ways that same call gets described and carried ↓</div>
+            <div class="fo-row">
+              <div class="mini-box">Native Function Calling<br><small>each provider's own format — the baseline gateways normalize</small></div>
+              <div class="mini-box">OpenAPI → Tool<br><small>schemas generated from an existing REST description</small></div>
+              <div class="mini-box dark">MCP<br><small>one tool server, many clients</small></div>
+            </div>
+            <div class="fo-note">↓ MCP splits what a server exposes by who controls it ↓</div>
+            <div class="fo-row">
+              <div class="mini-box">Prompt<br><small>user-controlled</small></div>
+              <div class="mini-box">Resource<br><small>application-controlled</small></div>
+              <div class="mini-box dark">Tool<br><small>model-controlled</small></div>
+            </div>
+            <div class="fo-note">MCP detail on this card is pinned to protocol revision 2026-07-28 (checked 2026-07-30) — MCP is versioned by dated revision and will drift</div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">Agent→tool calls all carry the same three things — a tool name, arguments, and a result — but there are several formats for saying it, and they stack rather than compete. <b>Native provider function calling</b> is the floor: each provider defines its own tool-calling format, with tool declarations in the request and tool-call blocks in the response. That is the baseline every gateway or adapter normalizes, translating one internal tool definition into whichever provider shape is in use. <b>OpenAPI-to-tool adaptation</b> goes the other direction: generate tool schemas directly from an existing OpenAPI/REST description, so services that are already documented become callable without hand-written wrappers — the description you already maintain becomes the tool contract. <b>MCP</b> standardizes the client/server side, so one tool server can serve many hosts instead of each host writing its own integration, and it further splits what a server exposes into three primitives by who controls them: <b>Prompts</b> are user-controlled — interactive templates invoked by user choice (slash commands, menu options); <b>Resources</b> are application-controlled — contextual data the client attaches and manages (file contents, git history); <b>Tools</b> are model-controlled — functions exposed to the LLM to take actions (API POST requests, file writing). The MCP detail here is <b>pinned to protocol revision 2026-07-28</b> and was checked on 2026-07-30 — MCP is versioned by dated revision, so revision-specific detail on this card will drift as new revisions publish. Three changes in that revision alter the shape of tool integration. MCP is now <b>stateless</b>: protocol-level sessions and the Mcp-Session-Id header are removed and the initialize / notifications/initialized handshake is gone, with each request instead carrying its protocol version and client capabilities in _meta, so a server needing state across calls returns an explicit opaque handle from a creation tool and re-authorizes the caller against it on every call. <b>Multi Round-Trip Requests (MRTR)</b> replace server-initiated requests: a server returns an InputRequiredResult (resultType &ldquo;input_required&rdquo;) whose inputRequests field carries what it needs, and the client retries the original request with inputResponses — every result now carries a required resultType of either &ldquo;complete&rdquo; or &ldquo;input_required&rdquo;. And servers <b>SHOULD return tools from tools/list in a deterministic order</b>, which &ldquo;enables client-side caching and improves LLM prompt cache hit rates&rdquo; — a stable tool block is a cacheable prompt prefix, the same point the Foundations and Context pages make about prefix stability. <b>Migration warning:</b> <b>tasks</b> — durable requests that outlive a single request/response — are no longer a core feature. In revision 2026-07-28 they moved out of core into an official extension, io.modelcontextprotocol/tasks: the blocking tasks/result method is replaced by polling via tasks/get, a new tasks/update carries client-to-server input, tasks/list is <b>removed</b> because, per the release notes, &ldquo;it can't be scoped safely without sessions,&rdquo; and servers may now return task handles unsolicited without a per-request opt-in. Anything built against the earlier experimental core Tasks API has to be migrated. Separately, <b>Roots, Sampling and Logging are deprecated</b> — still functional during the deprecation window, but new implementations should not adopt them. Whichever format carries the call, the lifecycle card above still applies: the wire format decides how a call is described, not whether it was authorized, validated, or safe to retry.</div>
+    </article>
+
+    <article class="pattern-block" aria-labelledby="h-comms">
+      <div class="pattern-label"><span class="tag">PROTOCOL</span><h2 class="name" id="h-comms">Agent-to-Agent &amp; UI Streaming</h2><button type="button" class="disclose" data-group="tools" data-id="comms" aria-controls="detail-tools" aria-expanded="false"><span class="disclose-label">Details</span><span class="sr-only"> for Agent-to-Agent &amp; UI Streaming</span></button></div>
+      <div class="pattern-diagram">
+        <div class="comms-wrap">
+          <div class="comms-row">
+            <div class="mini-box">Client Agent</div>
+            <div class="labeled-arrow"><span class="arrow-glyph">→</span><small>read Agent Card, then submit task</small></div>
+            <div class="mini-box dark">A2A Server Agent</div>
+          </div>
+          <div class="fanout">
+            <div class="fo-note">↓ A2A task states (§4.1.3) ↓</div>
+            <div class="fo-row">
+              <div class="mini-box">SUBMITTED · WORKING<br><small>initial</small></div>
+              <div class="mini-box">INPUT_REQUIRED · AUTH_REQUIRED<br><small>interrupted</small></div>
+              <div class="mini-box dark">COMPLETED · FAILED · CANCELED · REJECTED<br><small>terminal</small></div>
+            </div>
+            <div class="fo-note">↓ how progress reaches a user interface ↓</div>
+            <div class="fo-row">
+              <div class="mini-box">SSE / WebSocket<br><small>transport</small></div>
+              <div class="mini-box dark">Event envelope<br><small>token delta · progress · artifact update · approval request · cancellation · completion · error</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pattern-caption">Not every wire format points at a tool. <b>A2A</b> standardizes agent→agent work for cross-vendor and cross-framework interoperability. An A2A Server publishes an <b>Agent Card</b> (§8): a JSON metadata document describing its identity, capabilities, skills, service endpoint, and authentication requirements, with support for digital signatures for integrity plus caching and version management — so a client agent can decide whether a remote agent fits before sending it anything. Work is then tracked as a <b>Task</b> (§4.1.1) with explicit <b>TaskState</b> values (§4.1.3): initial <b>SUBMITTED</b> and <b>WORKING</b>; terminal <b>COMPLETED</b>, <b>FAILED</b>, <b>CANCELED</b>, <b>REJECTED</b>; and interrupted <b>INPUT_REQUIRED</b> and <b>AUTH_REQUIRED</b>. Each <b>TaskStatus</b> (§4.1.2) carries the state, an associated message, and an ISO 8601 timestamp, and related tasks can be grouped via a <b>contextId</b>. Content is typed rather than free text: a <b>Message</b> (§4.1.4) has a <b>messageId</b>, a <b>Role</b> (§4.1.5) of USER or AGENT, and an array of <b>Part</b> objects (§4.1.6), where a part is <b>text</b>, <b>raw</b> (base64 bytes), a <b>url</b> reference, or structured <b>data</b> (JSON) — which is what lets two independently built agents agree on a format. For <b>streaming</b> (§4.2) there are two task-update event types — <b>TaskStatusUpdateEvent</b> for state transitions and <b>TaskArtifactUpdateEvent</b> for incremental <b>Artifact</b> (§4.1.7) updates — delivered via streaming operations, with the HTTP binding using Server-Sent Events. <b>Errors</b> are categorized as authentication, authorization, validation, resource, and system, with A2A-specific errors including <b>TaskNotFoundError</b>, <b>PushNotificationNotSupportedError</b>, <b>UnsupportedOperationError</b>, <b>ContentTypeNotSupportedError</b>, and <b>VersionNotSupportedError</b>. The same discipline is what a user interface needs from the harness: <b>UI / event streaming</b> means an SSE or WebSocket transport carrying an <b>event envelope</b>, with distinct event kinds for token deltas, progress updates, artifact updates, approval requests, cancellation, completion, and errors. An interface that only receives a final blob can't show progress, can't offer a cancel button, and has nowhere to render the approval gate the lifecycle card above depends on.</div>
+    </article>
+
+    <div class="detail" id="detail-tools"></div>
+
+<script src="shared.js"></script>
+<script>
+const LOOP = {
+  user: { tag:"Step 1", name:"User Turn",
+    where:"The human (or a calling system) issues a task or a follow-up instruction.",
+    resp:["Submit a task or reply to the agent's last question","Can interrupt or cancel at any point"],
+    ach:["This is the only place new intent enters the loop"] },
+  assemble: { tag:"Step 2", name:"Harness Assembles",
+    where:"Runs entirely in the Harness (L2) — no model involved yet.",
+    resp:["Build the complete active context the model needs for this call: prompt, history, tool schemas, memory","Attach relevant memory and any newly retrieved documents","Decide which tool schemas are relevant and attach only those"],
+    ach:["Keeps the assembled context as small and relevant as possible; where the provider offers a stateful API or prompt cache, this ordering also lets it skip resending/recomputing the unchanged prefix"] },
+  modelcall: { tag:"Step 3 — touches the model", name:"Model Call",
+    where:"Routed through L3 (Transport/API) into L4 (Inference Serving), which runs the model.",
+    resp:["One inference request over the assembled context",
+      "Returns one response envelope — not a choice between two cases. A single response may carry ordered multimodal content parts, a structured (non-tool) payload, zero to many tool calls, a finish reason, a safety-or-refusal status, and usage/token accounting, in any combination",
+      "The finish reason says why generation stopped: completed normally, hit a length cap, tripped a content filter, or was cancelled — a truncated response is not the same thing as a failed one",
+      "A refusal is a successful response whose content is a refusal. A transport or API error — timeout, 5xx, rate limit, malformed response — is a separate category, surfaced by the call itself rather than read out of the content",
+      "So the harness inspects the envelope field by field — content parts, tool calls, finish reason, safety status, usage — instead of switching on “plain text or tool call”"],
+    ach:["This is the ONLY step in the whole loop that touches the model — everything else is scaffolding around this one call",
+      "Reading the return value as one envelope is what makes step 4 tractable: the branch can handle several tool calls at once, a length cap, and a refusal as independent facts rather than collapsing them into a two-way choice",
+      "Cross-reference: the fields of that envelope are enumerated on the Model Contract card on the Foundations page — this step is the same contract seen from inside the loop"] },
+  decide: { tag:"Step 4", name:"Harness Decides",
+    where:"Back in the Harness (L2), parsing what the model just returned.",
+    resp:["Parse the model's output","Check it against stop conditions: task complete? tool requested? turn/budget limit hit?"],
+    ach:["This is the branch point — determines whether the loop continues or ends"] },
+  toolexec: { tag:"Step 4a", name:"Execute Tool",
+    where:"Tool runtime/sandbox, invoked by the Harness.",
+    resp:["Run the requested tool (code, search, API call, etc.)","Add the result into context for the next model call"],
+    ach:["Feeds new information back in without ever needing a bigger model or a fine-tune — loops back to step 2"] },
+  done: { tag:"Step 4b", name:"Return to User",
+    where:"Back at the Interface (L1).",
+    resp:["Stream the final answer to the user","Close out this task's loop"],
+    ach:["Loop ends — no further model calls until the next user turn"] }
+};
+
+const TOOLS = {
+  "tool-lifecycle": { tag:"Lifecycle", name:"Tool Execution Lifecycle",
+    where:"Step 4a of the loop above, expanded — the tool runtime plus all the harness code wrapping every call before and after it.",
+    resp:["Discovery — the agent learns a tool exists; load its schema on demand rather than stuffing every tool schema into context",
+      "Descriptions & schemas — a tool's description and JSON Schema are the only things the model reasons over, so ambiguous ones cause misuse",
+      "Argument validation — validate the model's arguments against the schema before executing anything; never trust them",
+      "Identity & authorization — the call executes as a specific identity with scoped permissions, checked before execution, not after",
+      "Explicit state handles — MCP has no protocol-level session as of revision 2026-07-28, so a server needing state across calls returns an opaque handle from a creation tool and takes it back as an ordinary argument; the caller's authorization MUST be validated against that handle on every call",
+      "Secret brokering — the runtime injects credentials at call time; secrets never enter model context",
+      "Side-effect classification — read-only vs. mutating vs. irreversible; this classification is what drives approval, dry-run, idempotency and retry policy below",
+      "Approval — a human-in-the-loop gate for consequential calls",
+      "Mid-call input requests — MCP Multi Round-Trip Requests (MRTR) carry that gate on the wire: the server returns an InputRequiredResult (resultType “input_required”) with an inputRequests field, and the client retries the original request with inputResponses",
+      "Dry-run / preview — show what would happen before doing it",
+      "Timeout — bound how long a single call may run",
+      "Idempotency — an idempotency key so a retry can't double-execute a mutation",
+      "Retries — needs a budget and backoff, not just a safety check. Read-only means no external state is mutated; it does not mean free to repeat (reads consume quota, can be metered or billed, can hit rate limits, and can return non-repeatable results)",
+      "Sandbox & egress control — isolate execution and restrict outbound network, so a compromised tool can't exfiltrate",
+      "Compensation — a semantically inverse operation where one exists (refund a charge, cancel a booking); it is not a general undo",
+      "Reconciliation — detect and record the divergence between intended and actual state when a multi-step effect fails midway",
+      "Forward recovery — an action that moves to an acceptable state (e.g. send a correction notice) when the original effect cannot be reversed",
+      "Result normalization — convert raw output into a consistent, model-consumable shape",
+      "Truncation — bound result size so one huge output can't blow the context window",
+      "Audit — log the call, its arguments, its identity, and its outcome"],
+    ach:["Most of this lifecycle is harness work, not tool work: the tool body is one step in the middle, wrapped by validation and authorization before it and normalization, truncation and audit after it",
+      "Side-effect class is the pivot, but it does not hand out blanket permissions: a read-only call is one that mutates no external state, which is not the same as one that is free to repeat — repeated reads still burn quota, can be metered or rate-limited, and a paginated or time-sensitive read can return something different on the second attempt, so the retry is not necessarily equivalent to the first call",
+      "“Undo” is not universally available, and designing as if it were is the actual error. Compensation only works where a semantically inverse operation exists — refund a charge, cancel a booking. You cannot un-send an email, un-publish a post, or un-disclose data",
+      "For genuinely irreversible effects the answer is prevention, not rollback: an approval gate before execution plus narrow scoping of permissions and arguments. After the fact, the available moves are reconciliation (detect and record the divergence) and forward recovery (an action that reaches an acceptable state, e.g. a correction notice) — not a pretend rollback",
+      "Untrusted by default extends to metadata: MCP requires clients to treat tool annotations as untrusted unless they come from a trusted server, so a tool's own self-description — not just its output — is attacker-influenceable",
+      "MCP revision 2026-07-28 removes protocol-level sessions, which pushes this card's authorization and idempotency work down to every individual call: “MCP has no protocol-level session, so a server cannot rely on implicit per-connection state.” A handle returned by a creation tool is a name, not a capability — it has to be re-authorized on each use, and it is what an idempotency key attaches to when there is no session to hold that state",
+      "MRTR makes the approval gate part of the request/response contract rather than a harness-specific side channel: a server can require input mid-request, and the client resubmits with the answers instead of the server initiating a call back",
+      "Cross-reference: bounded retries and human escalation are separate policies, covered on the State & Runtime page"],
+    source:['<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools" target="_blank" rel="noopener">MCP tools specification (revision 2026-07-28)</a> — “clients MUST consider tool annotations to be untrusted unless they come from trusted servers.”',
+      '<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools" target="_blank" rel="noopener">MCP tools specification, Security Considerations (revision 2026-07-28)</a> — servers MUST validate all tool inputs, implement proper access controls, rate limit tool invocations, and sanitize tool outputs.',
+      '<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools" target="_blank" rel="noopener">MCP tools specification, Security Considerations (revision 2026-07-28)</a> — clients SHOULD prompt for user confirmation on sensitive operations, show tool inputs to the user before calling the server to avoid malicious or accidental data exfiltration, validate tool results before passing them to the LLM, implement timeouts for tool calls, and log tool usage for audit purposes.',
+      '<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools" target="_blank" rel="noopener">MCP tools specification, User Interaction Model (revision 2026-07-28)</a> — for trust &amp; safety and security, there SHOULD always be a human in the loop with the ability to deny tool invocations.',
+      '<a href="https://modelcontextprotocol.io/specification/2026-07-28/changelog" target="_blank" rel="noopener">MCP specification, revision 2026-07-28</a> — the protocol is stateless: “MCP has no protocol-level session, so a server cannot rely on implicit per-connection state.” Cross-call state is carried by an explicit opaque handle returned from a creation tool and passed back as an ordinary argument, and the server should validate the caller’s authorization against that handle on every call (the spec says SHOULD; treating it as mandatory is this reference’s recommendation, not a spec requirement) — a handle is a name, not a capability.',
+      '<a href="https://modelcontextprotocol.io/specification/2026-07-28/changelog" target="_blank" rel="noopener">MCP specification changelog (revision 2026-07-28)</a> — Multi Round-Trip Requests: a server returns an InputRequiredResult (resultType “input_required”) whose inputRequests field carries what it needs, and the client retries the original request with inputResponses.'] },
+  "pat-orch": { tag:"Fan-out", name:"Orchestrator → Workers",
+    where:"One orchestrator agent, N worker agents running in parallel.",
+    resp:["Orchestrator splits a task into independent subtasks","Dispatches each to a worker agent (each its own Harness+Model+Tools)","Merges worker outputs into one result"],
+    ach:["Use when: subtasks are independent and can run at the same time (e.g. research 5 sources at once)"] },
+  "pat-pipe": { tag:"Sequential", name:"Pipeline / Handoff",
+    where:"A chain of specialized agents, each handing off to the next.",
+    resp:["Agent A does its specialized step (e.g. plan)","Hands Agent B a typed task contract — goal, acceptance criteria, required context, artifact references, not its raw transcript","B hands off to C the same way, and so on"],
+    ach:["Preserves context isolation and bounds token growth down the chain — passing full raw output usually isn't","Use when: steps are inherently ordered and each needs a different tool-set or specialization"] },
+  "pat-crit": { tag:"Quality gate", name:"Worker + Critic Loop",
+    where:"Two agents in a review cycle: one produces, one evaluates.",
+    resp:["Worker agent produces a draft output","Critic agent checks it against criteria","If rejected, sends feedback back to Worker; repeat — but only up to a bounded number of iterations","Acceptance criteria must be measurable: a vague “is it good?” critic gives the worker nothing to converge on","If the iteration budget is exhausted without convergence, escalate — hand to a human or fall back, rather than spinning"],
+    ach:["Use when: correctness/quality matters more than speed, and a second opinion catches errors the worker misses","Bounded iterations + measurable criteria + an escalation path are what keep this from becoming an unbounded token sink","Same policy shape as bounded retry and human escalation on the State & Runtime page: the loop bound and the escalation are two separate decisions"] },
+  "more-patterns": { tag:"Taxonomy", name:"More Agentic Patterns",
+    where:"A naming layer over the shapes above, plus several more seen across agent frameworks generally.",
+    resp:["Anthropic names five patterns — the four listed here plus Parallelization below","1. Prompt Chaining — sequential LLM calls, each processing the prior step's output, with optional checkpoints in between. Similar sequential shape to Pipeline / Handoff above, but not the same pattern: chaining is about sequenced calls, which can all happen inside one agent — it does not inherently require separate agents with separate tool-sets","2. Routing — classify the input, then send it to specialized downstream handling built for that category","3. Parallelization — two variants: sectioning (independent subtasks run at once; same shape as Fan-out above) and voting (the identical task run N times, results aggregated for confidence)","4. Orchestrator-Workers — a central LLM dynamically decomposes tasks and delegates to workers; same shape as Fan-out above","5. Evaluator-Optimizer — one LLM generates while another gives feedback in a loop until criteria are met; same shape as Worker + Critic Loop above"],
+    ach:["Plan-and-Execute (not one of Anthropic's five) — the agent first produces an explicit plan, then executes its steps, re-planning when a step fails or reality diverges from the plan. Distinct from plain chaining: the plan is a first-class artifact the agent generates at run time, not a path fixed in code","Shared Workspace (also not one of Anthropic's five, common more broadly) — agents read/write one common piece of state instead of passing messages directly to each other","Hierarchical Supervision (also not one of Anthropic's five) — a supervisor agent continuously monitors workers and can interrupt or redirect them mid-task, not just dispatch them once","Naming a pattern doesn't mandate one implementation — the value is a shared vocabulary for describing what a multi-agent system is actually doing"],
+    source:['<a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Anthropic — Building Effective Agents</a> (names the five patterns)'] },
+  "tool-protocols": { tag:"Protocol", name:"Tool-Facing Protocols",
+    where:"The wire format between an agent and a tool — several layered formats rather than one, sitting between the Harness (L2) and the tool runtime.",
+    resp:["Native provider function calling — each provider defines its own tool-calling format: tool/function declarations in the request, tool-call blocks in the response. This is the baseline layer; gateways and adapters normalize one internal tool definition into whichever provider shape is in use",
+      "OpenAPI-to-tool adaptation — generate tool schemas from an existing OpenAPI/REST description, so services already documented that way become callable without hand-written wrappers; the API description you already maintain becomes the tool contract",
+      "MCP — a client/server protocol so one tool server can serve many agents and hosts, instead of every host writing its own integration for the same capability",
+      "MCP splits what a server exposes into three primitives by who controls them: Prompts (user-controlled — interactive templates invoked by user choice, e.g. slash commands), Resources (application-controlled — contextual data attached and managed by the client, e.g. file contents, git history), and Tools (model-controlled — functions exposed to the LLM to take actions, e.g. API POST requests, file writing)",
+      "As of protocol revision 2026-07-28 (checked 2026-07-30) — the MCP detail on this card is pinned to that dated revision, and MCP is versioned by revision, so it will drift",
+      "Stateless — revision 2026-07-28 removes protocol-level sessions and the Mcp-Session-Id header, and drops the initialize / notifications/initialized handshake; each request instead carries its protocol version and client capabilities in _meta",
+      "Multi Round-Trip Requests (MRTR) replace server-initiated requests — a server returns an InputRequiredResult (resultType “input_required”) whose inputRequests field carries what it needs, and the client retries the original request with inputResponses; all results now carry a required resultType, either “complete” or “input_required”",
+      "Tasks are no longer core — durable requests moved out of core into an official extension, io.modelcontextprotocol/tasks: polling via tasks/get replaces the blocking tasks/result method, a new tasks/update carries client-to-server input, tasks/list is removed (per the release notes, it can’t be scoped safely without sessions), and servers may return task handles unsolicited without a per-request opt-in",
+      "Deterministic ordering — servers SHOULD return tools from tools/list in a deterministic order, which “enables client-side caching and improves LLM prompt cache hit rates”",
+      "Roots, Sampling and Logging are deprecated — still functional during the deprecation window; new implementations should not adopt them"],
+    ach:["These are layers, not rivals: native function calling is what the model actually sees, OpenAPI adaptation is a way of authoring tool schemas cheaply from something that already exists, and MCP is a way of making a tool surface reusable across hosts",
+      "Migration warning: tasks — what a long-running tool call needs when it outlives a single request/response — shipped as an experimental core feature in the previous revision (2025-11-25) and is now an official extension instead, with the blocking result call replaced by tasks/get polling and tasks/list gone entirely. Anything built against the 2025-11-25 experimental core Tasks API must be migrated",
+      "Statelessness pushes state into explicit arguments: “MCP has no protocol-level session, so a server cannot rely on implicit per-connection state.” A server needing cross-call state returns an explicit opaque handle from a creation tool, accepts it as an ordinary argument later, and should validate the caller’s authorization against that handle on every call (the spec says SHOULD; treating it as mandatory is this reference’s recommendation, not a spec requirement) — a handle is a name, not a capability. That is the same pre-execution authorization check the Tool Execution Lifecycle card above describes, now owed on every call rather than once per session",
+      "MRTR is the protocol-level form of the lifecycle card’s mid-call approval and elicitation gate: the pause for input belongs to the request/response contract instead of a harness-specific side channel",
+      "Deterministic tools/list ordering is a caching concern, not cosmetics — a stable tool block is a cacheable prompt prefix, which is the prefix-stability point made on the Foundations and Context pages",
+      "Untrusted by default extends to metadata: MCP requires clients to treat tool annotations as untrusted unless they come from a trusted server, so a tool's own self-description is attacker-influenceable, not just its output",
+      "The wire format decides how a call is described — not whether it was authorized, validated, budgeted, or safe to retry. All of that stays in the Tool Execution Lifecycle card above"],
+    source:['<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/index" target="_blank" rel="noopener">MCP specification, server primitives (revision 2026-07-28)</a> — the prompts (user-controlled) / resources (application-controlled) / tools (model-controlled) split',
+      '<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools" target="_blank" rel="noopener">MCP tools specification (revision 2026-07-28)</a> — tool definitions, invocation, and security guidance; servers SHOULD return tools from tools/list in a deterministic order, which “enables client-side caching and improves LLM prompt cache hit rates”',
+      '<a href="https://modelcontextprotocol.io/specification/2026-07-28/changelog" target="_blank" rel="noopener">MCP specification changelog (revision 2026-07-28)</a> — tasks move out of core into the official io.modelcontextprotocol/tasks extension: polling via tasks/get replaces the blocking tasks/result method, tasks/update carries client-to-server input, tasks/list is removed because “it can’t be scoped safely without sessions,” and servers may return task handles unsolicited without a per-request opt-in',
+      '<a href="https://modelcontextprotocol.io/specification/2026-07-28/changelog" target="_blank" rel="noopener">MCP specification changelog (revision 2026-07-28)</a> — the protocol becomes stateless (sessions and the Mcp-Session-Id header removed, the initialize / notifications/initialized handshake dropped, protocol version and client capabilities carried in _meta); Multi Round-Trip Requests replace server-initiated requests and every result carries a required resultType; Roots, Sampling and Logging are deprecated'] },
+  "comms": { tag:"Protocol", name:"Agent-to-Agent & UI Streaming",
+    where:"The two wire formats that do not point at a tool: agent→agent across vendors and frameworks, and harness→interface for streamed progress.",
+    resp:["A2A Agent Card (§8) — a JSON metadata document published by an A2A Server describing its identity, capabilities, skills, service endpoint, and authentication requirements; it supports digital signatures for integrity, plus caching and version management",
+      "A2A Task (§4.1.1) and TaskState (§4.1.3) — initial SUBMITTED and WORKING; terminal COMPLETED, FAILED, CANCELED, REJECTED; interrupted INPUT_REQUIRED and AUTH_REQUIRED. Each TaskStatus (§4.1.2) carries the state, an associated message, and an ISO 8601 timestamp; related tasks may be grouped via contextId",
+      "A2A Message (§4.1.4) and Part (§4.1.6) — a message has a messageId, a Role (§4.1.5) of USER or AGENT, and an array of Part objects; part types are text, raw (base64 bytes), a url reference, and structured data (JSON)",
+      "A2A streaming (§4.2) — two task-update event types: TaskStatusUpdateEvent for state transitions and TaskArtifactUpdateEvent for incremental Artifact (§4.1.7) updates, delivered via streaming operations; the HTTP binding uses Server-Sent Events",
+      "A2A errors — categorized as authentication, authorization, validation, resource, and system; A2A-specific errors include TaskNotFoundError, PushNotificationNotSupportedError, UnsupportedOperationError, ContentTypeNotSupportedError, and VersionNotSupportedError",
+      "UI / event streaming — how progress reaches a user interface: an SSE or WebSocket transport carrying an event envelope, with event kinds for token deltas, progress updates, artifact updates, approval requests, cancellation, completion, and errors"],
+    ach:["Explicit task states let a caller distinguish still-working from needs-input from refused without inferring it from prose — INPUT_REQUIRED and AUTH_REQUIRED are interrupted states, not failures",
+      "Typed Parts are what let two independently built agents agree on content: text, raw bytes, a URL reference, or structured JSON, rather than one side guessing how to parse the other",
+      "The same envelope discipline is what a user interface needs. An interface that only gets a final blob cannot show progress, cannot offer cancellation, and has nowhere to render an approval request",
+      "Cross-reference: the approval-request event kind is the transport for the approval gate in the Tool Execution Lifecycle card above, and streamed status updates are what the loop diagram's step 4b renders"],
+    source:['<a href="https://a2a-protocol.org/latest/specification" target="_blank" rel="noopener">A2A Protocol v1.0 specification</a> — Agent Card (§8), streaming events (§4.2), error categories, and the §4.1 Core Objects: Task (§4.1.1), TaskStatus (§4.1.2), TaskState (§4.1.3), Message (§4.1.4), Role (§4.1.5), Part (§4.1.6), Artifact (§4.1.7)'] }
+};
+
+const renderLoop = wireGroup(LOOP, 'loop', 'detail-tools');
+const renderTools = wireGroup(TOOLS, 'tools', 'detail-tools');
+renderLoop('modelcall');
+renderTools('pat-orch');
+</script>
+  </div>
+</body>
+</html>
