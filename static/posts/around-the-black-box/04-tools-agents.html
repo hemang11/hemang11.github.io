@@ -253,7 +253,7 @@ const TOOLS = {
       "Descriptions & schemas — a tool's description and JSON Schema are the only things the model reasons over, so ambiguous ones cause misuse",
       "Argument validation — validate the model's arguments against the schema before executing anything; never trust them",
       "Identity & authorization — the call executes as a specific identity with scoped permissions, checked before execution, not after",
-      "Explicit state handles — MCP has no protocol-level session as of revision 2026-07-28, so a server needing state across calls returns an opaque handle from a creation tool and takes it back as an ordinary argument; the caller's authorization MUST be validated against that handle on every call",
+      "Explicit state handles — MCP has no protocol-level session as of revision 2026-07-28, so a server needing state across calls returns an opaque handle from a creation tool and takes it back as an ordinary argument. It should validate authorization on every call; MCP says SHOULD, while this reference recommends treating it as mandatory",
       "Secret brokering — the runtime injects credentials at call time; secrets never enter model context",
       "Side-effect classification — read-only vs. mutating vs. irreversible; this classification is what drives approval, dry-run, idempotency and retry policy below",
       "Approval — a human-in-the-loop gate for consequential calls",
